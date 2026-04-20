@@ -57,6 +57,62 @@ describe("bridge server", () => {
     }
   });
 
+  it("accepts query-string params on POST requests", async () => {
+    const runHook = vi.fn(() => "hook://file/abc");
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        { name: "find", usage: "hook find QUERY", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/find?query=attio`, {
+        method: "POST",
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["find", "attio"]);
+    } finally {
+      await close();
+    }
+  });
+
+  it("omits missing bracketed-optional positionals from CLI args", async () => {
+    const runHook = vi.fn(() => "ok");
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        { name: "list", usage: "hook list [FILTER]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["list"]);
+    } finally {
+      await close();
+    }
+  });
+
   it("returns 404 for unknown operations", async () => {
     const { listen, close } = makeServer();
     const port = await listen(0);

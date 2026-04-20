@@ -1,6 +1,6 @@
 // tests/manualBuilder.test.ts
 import { describe, expect, it } from "vitest";
-import { generateOpenApiSpec } from "../src/manualBuilder";
+import { extractPositionals, generateOpenApiSpec } from "../src/manualBuilder";
 import type { HookCliSpec } from "../src/specTypes";
 
 const SPEC: HookCliSpec = {
@@ -26,5 +26,33 @@ describe("generateOpenApiSpec", () => {
     const schema = openapi.paths["/clip"].post.requestBody.content["application/json"].schema;
     expect(schema.type).toBe("object");
     expect(schema.properties.markdown).toEqual({ type: "boolean", description: "Markdown link" });
+  });
+
+  it("marks bracketed positionals as optional (not in required[])", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        { name: "list", usage: "hook list REQUIRED [OPTIONAL]", description: "", options: [] },
+      ],
+    };
+    const openapi = generateOpenApiSpec("http://127.0.0.1:3801", spec);
+    const schema = (openapi.paths["/list"].post as { requestBody: { content: { "application/json": { schema: { properties: Record<string, unknown>; required: string[] } } } } })
+      .requestBody.content["application/json"].schema;
+    expect(Object.keys(schema.properties).sort()).toEqual(["optional", "required"]);
+    expect(schema.required).toEqual(["required"]);
+  });
+});
+
+describe("extractPositionals", () => {
+  it("distinguishes bare (required) and bracketed (optional) tokens", () => {
+    expect(extractPositionals("hook foo FILE [DEST]")).toEqual([
+      { name: "FILE", optional: false },
+      { name: "DEST", optional: true },
+    ]);
+  });
+
+  it("returns empty when no positionals are present", () => {
+    expect(extractPositionals("hook version")).toEqual([]);
   });
 });

@@ -1,6 +1,6 @@
 import http from "node:http";
 import type { HookCliSpec, HookSubcommand } from "./specTypes.js";
-import { generateOpenApiSpec } from "./manualBuilder.js";
+import { extractPositionals, generateOpenApiSpec } from "./manualBuilder.js";
 
 export interface BridgeOptions {
   spec: HookCliSpec;
@@ -24,9 +24,8 @@ function bodyToArgs(sub: HookSubcommand, body: Record<string, unknown>): string[
     if (value === true && opt.long) args.push(opt.long);
   }
 
-  const positionalTokens = (sub.usage.match(/\b[A-Z_]{2,}\b/g) ?? []).map((t) => t.toLowerCase());
-  for (const token of positionalTokens) {
-    const v = body[token];
+  for (const p of extractPositionals(sub.usage)) {
+    const v = body[p.name.toLowerCase()];
     if (typeof v === "string" && v.length > 0) args.push(v);
   }
 
@@ -45,28 +44,31 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
   const subByName = new Map(opts.spec.subcommands.map((s) => [s.name, s]));
 
   const server = http.createServer(async (req, res) => {
-    const url = req.url ?? "/";
+    const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
+    const pathname = requestUrl.pathname;
     res.setHeader("content-type", "application/json");
 
-    if (req.method === "GET" && url === "/openapi") {
+    if (req.method === "GET" && pathname === "/openapi") {
       const openapi = generateOpenApiSpec(`http://127.0.0.1:${(server.address() as { port: number }).port}`, opts.spec);
       res.end(JSON.stringify(openapi));
       return;
     }
 
-    if (req.method === "GET" && url === "/changelog") {
+    if (req.method === "GET" && pathname === "/changelog") {
       res.setHeader("content-type", "text/html");
       res.end(opts.getChangelogHtml());
       return;
     }
 
     if (req.method === "POST") {
-      const name = url.slice(1);
+      const name = pathname.slice(1);
       const sub = subByName.get(name);
       if (!sub) { res.statusCode = 404; res.end(JSON.stringify({ error: `Unknown operation: ${name}` })); return; }
       const body = await readJsonBody(req);
+      const query = Object.fromEntries(requestUrl.searchParams.entries());
+      const argsInput = { ...query, ...body };
       try {
-        const output = opts.runHook(opts.hookCli, bodyToArgs(sub, body));
+        const output = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInput));
         res.end(JSON.stringify({ output }));
       } catch (e: unknown) {
         res.statusCode = 500;

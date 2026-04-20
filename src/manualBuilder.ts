@@ -10,15 +10,29 @@ function optionToProperty(opt: HookSubcommand["options"][number]): [string, Reco
   return [key, { type: "boolean", description: opt.description }];
 }
 
+export interface Positional {
+  name: string;
+  optional: boolean;
+}
+
+// Parse positional tokens from a usage line. Bracketed tokens (e.g. `[FILE]`)
+// are marked optional; bare uppercase tokens (e.g. `FILE`) are required.
+// The bracketed alternative comes first so `[FILE]` matches as a unit rather
+// than leaking `FILE` to the bare-token branch.
+export function extractPositionals(usage: string): Positional[] {
+  const matches = usage.match(/\[[A-Z_]{2,}\]|\b[A-Z_]{2,}\b/g) ?? [];
+  return matches.map((tok) => ({
+    name: tok.replace(/^\[|\]$/g, ""),
+    optional: tok.startsWith("["),
+  }));
+}
+
 function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
-  const usage = sub.usage;
+  const positional = extractPositionals(sub.usage);
 
-  // Positional args inferred from usage line (uppercase tokens after subcommand name).
-  const positional = usage.match(/\b[A-Z_]{2,}\b/g) ?? [];
-  for (const token of positional) {
-    const key = token.toLowerCase();
-    properties[key] = { type: "string", description: `Positional: ${token}` };
+  for (const p of positional) {
+    properties[p.name.toLowerCase()] = { type: "string", description: `Positional: ${p.name}` };
   }
 
   for (const opt of sub.options) {
@@ -29,7 +43,7 @@ function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
   return {
     type: "object",
     properties,
-    required: positional.filter((p) => !/^\[.+\]$/.test(p)).map((p) => p.toLowerCase()),
+    required: positional.filter((p) => !p.optional).map((p) => p.name.toLowerCase()),
   };
 }
 
