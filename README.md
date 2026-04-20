@@ -63,7 +63,7 @@ You never need to remember tool names or parameters.
 **Prerequisites:**
 - macOS with [Hookmark](https://hookproductivity.com) installed
 - Hookmark's `hook` CLI (`gem install hookmark` or installed with Hookmark)
-- Node.js 18+ or Bun
+- Node.js 22+ or Bun
 
 **Install with Claude Code:**
 
@@ -348,7 +348,10 @@ Get the `hook://` URL for the active document in a macOS app.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `HOOK_CLI` | `/opt/homebrew/lib/ruby/gems/4.0.0/bin/hook` | Path to the `hook` CLI binary |
+| `HOOK_CLI` | auto-detected | Path to the `hook` CLI binary |
+| `HOOK_BRIDGE_PORT` | `0` | Local HTTP bridge port. `0` picks an ephemeral free port |
+| `HOOK_SKIP_REGEN` | `0` | Skip `hook help` spec regeneration at startup when set to `1` |
+| `HOOK_CHANGELOG_AUTO_OPEN` | `1` | Disable browser auto-open for the changelog UI when set to `0` |
 
 Override the CLI path if your `hook` binary is installed elsewhere:
 
@@ -395,7 +398,7 @@ Claude Code needs accessibility permissions to interact with Hookmark via AppleS
 - macOS (Hookmark is macOS-only)
 - [Hookmark](https://hookproductivity.com) with an active license
 - `hook` CLI v2.0+ (`gem install hookmark`)
-- Node.js 18+ or Bun
+- Node.js 22+ or Bun
 
 ## License
 

@@ -1,25 +1,114 @@
 import { describe, expect, it } from "vitest";
-import { getConfig } from "../src/config";
+import { getConfig, resolveHookCli, defaultCandidateHookPaths } from "../src/config";
+
+const noPath = () => null;
+const noFiles = () => false;
 
 describe("config", () => {
-  it("returns Hook defaults when env is empty", () => {
-    const c = getConfig({});
-    expect(c.hookCli).toBe("/opt/homebrew/lib/ruby/gems/4.0.0/bin/hook");
-    expect(c.bridgePort).toBe(3801);
-    expect(c.skipRegen).toBe(false);
-    expect(c.changelogAutoOpen).toBe(true);
+  it("HOOK_CLI env var takes precedence over everything", () => {
+    const c = getConfig(
+      { HOOK_CLI: "/custom/path/hook" },
+      { lookupOnPath: () => "/opt/homebrew/bin/hook", fileExists: () => true }
+    );
+    expect(c.hookCli).toBe("/custom/path/hook");
   });
 
-  it("respects overrides", () => {
-    const c = getConfig({
-      HOOK_CLI: "/usr/local/bin/hook",
-      HOOK_BRIDGE_PORT: "4000",
-      HOOK_SKIP_REGEN: "1",
-      HOOK_CHANGELOG_AUTO_OPEN: "0",
-    });
+  it("prefers PATH lookup when it resolves", () => {
+    const resolved = resolveHookCli(
+      {},
+      {
+        lookupOnPath: () => "/opt/homebrew/bin/hook",
+        fileExists: (p) => p === "/opt/homebrew/bin/hook",
+      }
+    );
+    expect(resolved).toBe("/opt/homebrew/bin/hook");
+  });
+
+  it("falls back to the first existing known candidate", () => {
+    const resolved = resolveHookCli(
+      {},
+      {
+        lookupOnPath: noPath,
+        candidates: () => ["/usr/local/bin/hook", "/opt/homebrew/bin/hook"],
+        fileExists: (p) => p === "/opt/homebrew/bin/hook",
+      }
+    );
+    expect(resolved).toBe("/opt/homebrew/bin/hook");
+  });
+
+  it("supports system Ruby sudo install at /usr/local/bin/hook", () => {
+    const resolved = resolveHookCli(
+      {},
+      {
+        lookupOnPath: noPath,
+        fileExists: (p) => p === "/usr/local/bin/hook",
+      }
+    );
+    expect(resolved).toBe("/usr/local/bin/hook");
+  });
+
+  it("supports --user-install under ~/.gem", () => {
+    const home = process.env.HOME || "/Users/test";
+    const target = `${home}/.gem/ruby/2.6.0/bin/hook`;
+    const resolved = resolveHookCli(
+      {},
+      {
+        lookupOnPath: noPath,
+        fileExists: (p) => p === target,
+      }
+    );
+    expect(resolved).toBe(target);
+  });
+
+  it("returns bare 'hook' when nothing is found", () => {
+    const resolved = resolveHookCli(
+      {},
+      { lookupOnPath: noPath, fileExists: noFiles }
+    );
+    expect(resolved).toBe("hook");
+  });
+
+  it("ignores a PATH result that does not exist on disk", () => {
+    const resolved = resolveHookCli(
+      {},
+      {
+        lookupOnPath: () => "/stale/hook",
+        candidates: () => ["/opt/homebrew/bin/hook"],
+        fileExists: (p) => p === "/opt/homebrew/bin/hook",
+      }
+    );
+    expect(resolved).toBe("/opt/homebrew/bin/hook");
+  });
+
+  it("default candidate list covers known install locations", () => {
+    const list = defaultCandidateHookPaths("/Users/test");
+    expect(list).toContain("/opt/homebrew/bin/hook");
+    expect(list).toContain("/usr/local/bin/hook");
+    expect(list).toContain("/usr/bin/hook");
+    expect(list).toContain("/Users/test/.gem/ruby/2.6.0/bin/hook");
+    expect(list).toContain("/Users/test/.rbenv/shims/hook");
+    expect(list).toContain("/Users/test/.asdf/shims/hook");
+    expect(list).toContain("/opt/local/bin/hook");
+  });
+
+  it("respects non-hookCli overrides", () => {
+    const c = getConfig(
+      {
+        HOOK_CLI: "/usr/local/bin/hook",
+        HOOK_BRIDGE_PORT: "4000",
+        HOOK_SKIP_REGEN: "1",
+        HOOK_CHANGELOG_AUTO_OPEN: "0",
+      },
+      { fileExists: () => true, lookupOnPath: () => null }
+    );
     expect(c.hookCli).toBe("/usr/local/bin/hook");
     expect(c.bridgePort).toBe(4000);
     expect(c.skipRegen).toBe(true);
     expect(c.changelogAutoOpen).toBe(false);
+  });
+
+  it("defaults to an ephemeral bridge port", () => {
+    const c = getConfig({}, { lookupOnPath: noPath, fileExists: noFiles });
+    expect(c.bridgePort).toBe(0);
   });
 });
