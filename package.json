@@ -1,7 +1,7 @@
 {
   "name": "hookmark-mcp",
-  "version": "0.1.0",
-  "description": "MCP server for Hookmark — exposes the hook CLI as MCP tools for Claude Code",
+  "version": "0.2.0",
+  "description": "Code-Mode MCP server for Hookmark — exposes the hook CLI as a UTCP manual for Claude Code and other MCP clients",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
@@ -9,8 +9,10 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/index.js"
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "regen-spec": "tsx scripts/regen_hook_spec.ts"
   },
   "keywords": [
     "mcp",
@@ -19,6 +21,8 @@
     "claude",
     "claude-code",
     "mcp-server",
+    "code-mode",
+    "utcp",
     "macos",
     "productivity"
   ],
@@ -31,18 +35,26 @@
   "homepage": "https://github.com/mnott/Hook#readme",
   "files": [
     "dist",
+    "docs/reference/hook-cli-spec.json",
     "README.md",
     "LICENSE"
   ],
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "@utcp/code-mode": "^1.2.11",
+    "@utcp/dotenv-loader": "^1.1.0",
+    "@utcp/http": "^1.1.0",
+    "@utcp/sdk": "^1.1.0",
+    "dotenv": "^17.3.1",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typescript": "^5.0.0"
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
   }
 }
