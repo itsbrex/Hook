@@ -71,12 +71,14 @@ export function buildUsageGuide(): string {
     "2. `tools_info` to fetch the TypeScript interface for a given hook subcommand before using it.",
     "",
     "Execution (preferred):",
-    "- Use `call_tool_chain` with a TypeScript snippet that calls `hook.<subcommand>({...})`.",
+    "- Use `call_tool_chain` with a TypeScript snippet that calls `hook.<subcommand>({ body: {...} })`.",
     "- Examples:",
-    "    return await hook.clip({ item: '/Users/me/note.md' });",
-    "    const a = await hook.clip({ item: '/a.md' });",
-    "    const b = await hook.clip({ item: '/b.md' });",
-    "    return await hook.link({ item_a: a.output, item_b: b.output });",
+    "    return hook.clip({ body: { item: '/Users/me/note.md' } });",
+    "    return hook.clip({ body: { item: '/a.md' } }).then((a) =>",
+    "      hook.clip({ body: { item: '/b.md' } }).then((b) =>",
+    "        hook.link({ body: { item_a: a.output, item_b: b.output } })",
+    "      )",
+    "    );",
     "",
     "Batch related work in a single `call_tool_chain` execution rather than many small tool calls.",
   ].join("\n");
@@ -259,7 +261,7 @@ You can access Hookmark data only through registered MCP Hookmark tools.
 
 ### Execution strategy
 - Prefer **one \`call_tool_chain\` execution** that performs all related steps end-to-end when feasible.
-- In that TypeScript snippet, use \`hook.*\` calls (e.g. \`hook.clip({ item: '/Users/me/note.md' })\`, \`hook.link({ item_a, item_b })\`).
+- In that TypeScript snippet, use \`hook.*\` calls with a \`body\` object (e.g. \`hook.clip({ body: { item: '/Users/me/note.md' } })\`).
 - Avoid many small tool executions unless splitting is necessary (e.g., pagination checkpoints, error recovery, user-requested stepwise execution).
 
 ${CodeModeUtcpClient.AGENT_PROMPT_TEMPLATE}
@@ -650,7 +652,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
     {
       title: "Execute TypeScript Code with Hookmark Tool Access",
       description:
-        "Execute TypeScript code with direct access to all registered Hookmark tools as hierarchical functions (e.g., hook.clip({ item }), hook.link({ item_a, item_b })).",
+        "Execute TypeScript code with direct access to all registered Hookmark tools as hierarchical functions (e.g., hook.clip({ body: { item } }), hook.link({ body: { item_a, item_b } })).",
       inputSchema: {
         code: z
           .string()

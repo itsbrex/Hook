@@ -22,5 +22,7 @@ describe("server surface", () => {
     expect(guide).toContain("hook.clip");
     expect(guide).toContain("hook.link");
     expect(guide).toContain("call_tool_chain");
+    expect(guide).toContain("body:");
+    expect(guide).not.toContain("return await hook.clip({ item:");
   });
 });
