@@ -1,0 +1,13 @@
+{
+  "generatedAt": "1970-01-01T00:00:00.000Z",
+  "hookVersion": null,
+  "subcommands": [
+    { "name": "clip",   "usage": "hook clip ITEM",           "description": "Generate a hook:// URL for ITEM and copy it to the clipboard.", "options": [] },
+    { "name": "link",   "usage": "hook link ITEM_A ITEM_B",  "description": "Create a bidirectional hook between two items.",                  "options": [] },
+    { "name": "list",   "usage": "hook list [ITEM]",         "description": "List all hooks for ITEM (or all bookmarks if omitted).",         "options": [] },
+    { "name": "find",   "usage": "hook find QUERY",          "description": "Search Hookmark bookmarks by keyword.",                          "options": [] },
+    { "name": "remove", "usage": "hook remove ITEM_A ITEM_B","description": "Remove a bidirectional hook between two items.",                 "options": [] },
+    { "name": "clone",  "usage": "hook clone SRC DEST",      "description": "Clone all hooks from SRC onto DEST.",                            "options": [] },
+    { "name": "from",   "usage": "hook from APP",            "description": "Get the hook:// URL for the frontmost window of APP.",           "options": [] }
+  ]
+}
