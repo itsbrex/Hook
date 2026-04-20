@@ -1,3 +1,37 @@
+## v0.2.0 — Code-Mode MCP (Breaking Change)
+
+`hookmark-mcp` has been rewritten as a code-mode MCP. The seven concrete
+tools (`hookmark_link`, `hookmark_connect`, `hookmark_list`,
+`hookmark_search`, `hookmark_remove`, `hookmark_clone`,
+`hookmark_frontmost`) are **removed**.
+
+Callers now invoke hook subcommands through `call_tool_chain`:
+
+```ts
+// Before (v0.1.x):
+hookmark_link({ item: "/Users/me/note.md" })
+
+// After (v0.2.0):
+call_tool_chain({
+  code: `return await hook.clip({ item: "/Users/me/note.md" });`
+})
+```
+
+### Startup behavior
+
+On every server start, `scripts/regen_hook_spec.ts` runs `hook help` against
+your installed Hookmark CLI and writes `docs/reference/hook-cli-spec.json`.
+If the spec changed since last run, the bridge renders a changelog page and
+auto-opens `http://127.0.0.1:<port>/changelog` in your default browser.
+
+Opt out with `HOOK_SKIP_REGEN=1` or `HOOK_CHANGELOG_AUTO_OPEN=0`.
+
+### Manual spec refresh
+
+```bash
+npm run regen-spec
+```
+
 ---
 links: "[[Ideaverse/AI/Hook/Hook|Hook]]"
 ---
