@@ -8,7 +8,7 @@
     "hookmark-mcp": "dist/index.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/assets && cp src/assets/changelog-template.html dist/assets/",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",

@@ -9,6 +9,7 @@ describe("project scaffold", () => {
     expect(pkg.scripts.test).toBe("vitest run");
     expect(pkg.scripts.dev).toBe("tsx src/index.ts");
     expect(pkg.scripts["regen-spec"]).toBe("tsx scripts/regen_hook_spec.ts");
+    expect(pkg.scripts.build).toContain("changelog-template.html");
     for (const dep of [
       "@utcp/code-mode",
       "@utcp/sdk",
