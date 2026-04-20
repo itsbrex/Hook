@@ -1,467 +1,768 @@
 #!/usr/bin/env node
+
 /**
- * Hookmark MCP server — entry point and tool registrations.
+ * hookmark-mcp Code-Mode MCP Server
  *
- * This server exposes the Hookmark `hook` CLI (v2.1.3) as MCP tools so that
- * Claude Code and other MCP clients can generate, query, and manage Hookmark
- * links programmatically.
+ * A single MCP server that registers Hookmark CLI subcommands as UTCP tools
+ * via a local HTTP bridge, then exposes them through Code-Mode's
+ * call_tool_chain for batched TypeScript execution in an isolated sandbox.
  *
- * ### Tools registered
- * | Tool name              | CLI command   | Purpose                                              |
- * |------------------------|---------------|------------------------------------------------------|
- * | `hookmark_link`        | `hook clip`   | Generate a hook:// URL for a file or URL             |
- * | `hookmark_connect`     | `hook link`   | Create a bidirectional hook between two items        |
- * | `hookmark_list`        | `hook list`   | List all hooks attached to a file or URL             |
- * | `hookmark_search`      | `hook find`   | Search Hookmark bookmarks by keyword                 |
- * | `hookmark_remove`      | `hook remove` | Remove a hook between two items                      |
- * | `hookmark_clone`       | `hook clone`  | Clone all hooks from one item to another             |
- * | `hookmark_frontmost`   | `hook from`   | Get the hook:// URL for the frontmost app window     |
- *
- * ### Configuration
- * Set the `HOOK_CLI` environment variable to override the default CLI path:
- *   HOOK_CLI=/usr/local/bin/hook node dist/index.js
- *
- * Default CLI path: /opt/homebrew/lib/ruby/gems/4.0.0/bin/hook
- *
- * ### stdout constraint
- * In MCP server mode stdout is the JSON-RPC transport. Never write anything
- * other than well-formed MCP JSON to stdout. All debug output and log lines
- * must go to stderr.
+ * Pattern: mirrors @utcp/code-mode-mcp / brandjet-code-mode.
  */
 
-import { execSync } from "node:child_process";
+import util from "node:util";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+import { config as loadDotenv } from "dotenv";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-// ---------------------------------------------------------------------------
-// CLI path resolution
-// ---------------------------------------------------------------------------
+import "@utcp/http";
+import "@utcp/dotenv-loader";
+import {
+  CallTemplateSchema,
+  ensureCorePluginsInitialized,
+  UtcpClientConfigSerializer,
+} from "@utcp/sdk";
+import type { CallTemplate } from "@utcp/sdk";
+import { CodeModeUtcpClient } from "@utcp/code-mode";
+import { ContentBlockSchema } from "@modelcontextprotocol/sdk/types.js";
+import type { ContentBlock } from "@modelcontextprotocol/sdk/types.js";
+import type { HttpCallTemplate } from "@utcp/http";
 
-const HOOK_CLI =
-  process.env.HOOK_CLI ?? "/opt/homebrew/lib/ruby/gems/4.0.0/bin/hook";
+import { getConfig } from "./config.js";
+import { runHook } from "./hookCli.js";
+import { loadHookCliSpec } from "./manualBuilder.js";
+import { createBridgeServer, type BridgeServer } from "./bridge.js";
+import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
+import { regenHookSpec } from "../scripts/regen_hook_spec.js";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
-function errorResponse(err: unknown) {
-  const msg = err instanceof Error ? err.message : String(err);
-  return { content: [{ type: "text" as const, text: `Error: ${msg}` }], isError: true };
+console.log = (...args: unknown[]) =>
+  process.stderr.write(util.format(...args) + "\n");
+console.warn = (...args: unknown[]) =>
+  process.stderr.write(util.format(...args) + "\n");
+
+loadDotenv({ path: path.resolve(__dirname, "..", ".env") });
+ensureCorePluginsInitialized();
+
+export const TOOL_NAMES = [
+  "register_manual",
+  "deregister_manual",
+  "search_tools",
+  "list_tools",
+  "changelog",
+  "tools_info",
+  "get_all_tool_interfaces",
+  "get_required_keys_for_tool",
+  "call_tool_chain",
+] as const;
+
+export function buildUsageGuide(): string {
+  return [
+    "## Hookmark Code-Mode Usage",
+    "",
+    "Discovery:",
+    "1. `search_tools` with the user's task description to find relevant hook subcommands.",
+    "2. `tools_info` to fetch the TypeScript interface for a given hook subcommand before using it.",
+    "",
+    "Execution (preferred):",
+    "- Use `call_tool_chain` with a TypeScript snippet that calls `hook.<subcommand>({...})`.",
+    "- Examples:",
+    "    return await hook.clip({ item: '/Users/me/note.md' });",
+    "    const a = await hook.clip({ item: '/a.md' });",
+    "    const b = await hook.clip({ item: '/b.md' });",
+    "    return await hook.link({ item_a: a.output, item_b: b.output });",
+    "",
+    "Batch related work in a single `call_tool_chain` execution rather than many small tool calls.",
+  ].join("\n");
 }
 
-/**
- * Execute a hook CLI command and return trimmed stdout.
- * Throws if the process exits with a non-zero code.
- */
-function runHook(args: string[]): string {
-  const cmd = [HOOK_CLI, ...args].map((a) => shellEscape(a)).join(" ");
-  try {
-    const output = execSync(cmd, {
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 30_000,
-    });
-    return output.trim();
-  } catch (err: unknown) {
-    if (err && typeof err === "object" && "stderr" in err) {
-      const e = err as { stderr: string; stdout: string; message: string };
-      const detail = (e.stderr || e.message || "").trim();
-      throw new Error(detail || `hook ${args[0]} failed`);
-    }
-    throw err;
-  }
-}
-
-/** Minimal shell escaping — wraps in single quotes, escapes embedded single quotes. */
-function shellEscape(s: string): string {
-  return `'${s.replace(/'/g, "'\\''")}'`;
-}
-
-// ---------------------------------------------------------------------------
-// Server definition
-// ---------------------------------------------------------------------------
-
-const server = new McpServer(
-  {
-    name: "hookmark-mcp",
-    version: "0.1.0",
-  },
-  {
-    instructions: [
-      "## Hookmark MCP — Bidirectional Link Management",
-      "",
-      "USE WHEN user mentions hookmark OR hook link OR hook this OR link this file OR",
-      "what's hooked OR search bookmarks OR connect documents OR bidirectional link OR",
-      "hook url OR clone hooks OR install hookmark.",
-      "",
-      "This server exposes the Hookmark productivity app via its `hook` CLI.",
-      "Hookmark creates bidirectional links (hooks) between files, URLs, emails,",
-      "tasks, notes, and other macOS items using stable `hook://` URLs.",
-      "",
-      "### Tool Quick Reference",
-      "",
-      "| Action           | Tool                    |",
-      "|------------------|-------------------------|",
-      "| Get hook URL     | `hookmark_link`         |",
-      "| Link two items   | `hookmark_connect`      |",
-      "| List hooks       | `hookmark_list`         |",
-      "| Search bookmarks | `hookmark_search`       |",
-      "| Remove link      | `hookmark_remove`       |",
-      "| Clone hooks      | `hookmark_clone`        |",
-      "| Active app       | `hookmark_frontmost`    |",
-      "",
-      "### Common Workflows",
-      "",
-      "**Link two documents together:**",
-      "1. Get the hook URL for each item using `hookmark_link` (for files/URLs)",
-      "   or `hookmark_frontmost` (for the active app window).",
-      "2. Call `hookmark_connect` with both hook:// URLs to create the bidirectional link.",
-      "",
-      "**Find what's linked to a file:**",
-      "Call `hookmark_list` with the file path or hook:// URL.",
-      "",
-      "**Search for bookmarks:**",
-      "Call `hookmark_search` with a keyword.",
-      "",
-      "**Move a file without losing links:**",
-      "Call `hookmark_clone` from old path to new path — all links are copied.",
-      "",
-      "### Multi-MCP Patterns",
-      "",
-      "**DEVONthink + Hookmark + Todoist:**",
-      "Search DEVONthink for a document, get its hook URL via `hookmark_link`,",
-      "then embed that URL in a Todoist task description. Opens in DEVONthink To Go on iOS.",
-      "",
-      "**Contacts + Hookmark + Todoist:**",
-      "Find a contact via Coogle (`search_contacts`), add contact and hook links",
-      "to a Todoist task so everything is accessible from any device.",
-      "",
-      "### Item References",
-      "Items can be referenced by:",
-      "- Absolute file path: `/Users/you/Documents/note.md`",
-      "- `hook://` URL: `hook://file/...` (stable, survives renames)",
-      "- Any URL: `https://example.com/page`",
-    ].join("\n"),
-  },
+const SPEC_PATH = path.resolve(__dirname, "..", "docs/reference/hook-cli-spec.json");
+const PREVIOUS_PATH = path.resolve(
+  __dirname,
+  "..",
+  "docs/reference/hook-cli-spec.previous.json"
 );
 
-// ---------------------------------------------------------------------------
-// Tool: hookmark_link
-// ---------------------------------------------------------------------------
+let bridge: BridgeServer | null = null;
+let bridgePort: number | null = null;
+let utcpClient: CodeModeUtcpClient | null = null;
+let cachedChangelogHtml = "<p>No changelog generated yet.</p>";
 
-server.registerTool("hookmark_link", {
-  description: [
-    "Generate a hook:// URL for a file or web URL and copy it to the clipboard.",
-    "Returns the hook:// URL that Hookmark assigned to the item.",
-    "Use this URL as a stable reference to the item when calling hookmark_connect.",
-    "Accepts an absolute file path (e.g. '/Users/you/note.md') or any URL (e.g. 'https://example.com').",
-  ].join(" "),
-  inputSchema: {
-    item: z
-      .string()
-      .min(1)
-      .describe("Absolute file path or URL to get a Hookmark URL for"),
-  },
-}, async ({ item }) => {
-  try {
-    // `hook clip` copies to clipboard and prints the URL on stdout
-    const output = runHook(["clip", item]);
-    // The CLI prints something like:
-    //   Copied Hook URL for 'filename' to clipboard
-    // or returns the URL directly. Try to extract a hook:// URL if present.
-    const hookUrl = extractHookUrl(output);
-    if (hookUrl) {
-      return { content: [{ type: "text", text: hookUrl }] };
-    }
-    // Fallback: return whatever the CLI printed
-    return {
-      content: [
-        {
-          type: "text",
-          text: output || `Hookmark URL for '${item}' copied to clipboard. Paste to retrieve the URL.`,
-        },
-      ],
-    };
-  } catch (err) {
-    return errorResponse(err);
-  }
-});
+async function bootBridgeAndClient(): Promise<void> {
+  if (utcpClient && bridge) return;
 
-// ---------------------------------------------------------------------------
-// Tool: hookmark_connect
-// ---------------------------------------------------------------------------
+  const cfg = getConfig(process.env);
 
-server.registerTool("hookmark_connect", {
-  description: [
-    "Create a bidirectional hook (link) between two items.",
-    "Both items must be referenced by their file path, URL, or hook:// URL.",
-    "After this call, each item will appear in the other's hook list.",
-    "Use hookmark_link or hookmark_frontmost to obtain hook:// URLs first.",
-  ].join(" "),
-  inputSchema: {
-    item_a: z
-      .string()
-      .min(1)
-      .describe("First item: absolute file path, URL, or hook:// URL"),
-    item_b: z
-      .string()
-      .min(1)
-      .describe("Second item: absolute file path, URL, or hook:// URL"),
-  },
-}, async ({ item_a, item_b }) => {
-  try {
-    const output = runHook(["link", item_a, item_b]);
-    return {
-      content: [
-        {
-          type: "text",
-          text: output || `Hook created between '${item_a}' and '${item_b}'.`,
-        },
-      ],
-    };
-  } catch (err) {
-    return errorResponse(err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Tool: hookmark_list
-// ---------------------------------------------------------------------------
-
-server.registerTool("hookmark_list", {
-  description: [
-    "List all items hooked to a given file or URL.",
-    "Returns one item per line in the requested format.",
-    "Use format 'paths' (default) for plain paths/URLs, 'markdown' for clickable links,",
-    "'hooks' for hook:// URLs only, or 'verbose' for full details.",
-    "Accepts an absolute file path, URL, or hook:// URL.",
-    "Call with no item to list all Hookmark bookmarks.",
-  ].join(" "),
-  inputSchema: {
-    item: z
-      .string()
-      .optional()
-      .describe("Absolute file path, URL, or hook:// URL to list hooks for. Omit to list all bookmarks."),
-    format: z
-      .enum(["paths", "hooks", "markdown", "verbose"])
-      .default("paths")
-      .describe("Output format: 'paths' (default), 'hooks' (hook:// URLs), 'markdown' (links), or 'verbose' (full details)"),
-    files_only: z
-      .boolean()
-      .default(false)
-      .describe("When true, exclude non-file items such as emails"),
-  },
-}, async ({ item, format, files_only }) => {
-  try {
-    const args: string[] = ["list", "-o", format];
-    if (files_only) args.push("--files_only");
-    if (item) args.push(item);
-
-    const output = runHook(args);
-    if (!output) {
-      return {
-        content: [
+  // Regen spec (best-effort). Falls back to existing spec on failure.
+  let spec;
+  if (!cfg.skipRegen) {
+    try {
+      const result = regenHookSpec({
+        hookCli: cfg.hookCli,
+        specPath: SPEC_PATH,
+        previousPath: PREVIOUS_PATH,
+      });
+      spec = result.spec;
+      if (result.changed && result.previousRaw) {
+        try {
+          const prev = JSON.parse(result.previousRaw);
+          const diff = diffSpecs(prev, spec);
+          cachedChangelogHtml = renderChangelogHtml(diff, spec);
+        } catch (e) {
+          console.warn("[hook] Failed to render changelog:", e);
+        }
+      } else {
+        cachedChangelogHtml = renderChangelogHtml(
           {
-            type: "text",
-            text: item ? `No hooks found for '${item}'.` : "No Hookmark bookmarks found.",
+            addedSubcommands: [],
+            removedSubcommands: [],
+            changedSubcommands: [],
+            hasChanges: false,
           },
-        ],
-      };
+          spec
+        );
+      }
+    } catch (e) {
+      console.warn("[hook] Regen failed, falling back to static spec:", e);
     }
-    return { content: [{ type: "text", text: output }] };
-  } catch (err) {
-    return errorResponse(err);
   }
-});
+  if (!spec) {
+    spec = loadHookCliSpec(SPEC_PATH);
+  }
 
-// ---------------------------------------------------------------------------
-// Tool: hookmark_search
-// ---------------------------------------------------------------------------
+  // Start bridge server
+  bridge = createBridgeServer({
+    spec,
+    hookCli: cfg.hookCli,
+    runHook,
+    getChangelogHtml: () => cachedChangelogHtml,
+  });
+  bridgePort = await bridge.listen(cfg.bridgePort);
 
-server.registerTool("hookmark_search", {
-  description: [
-    "Search Hookmark bookmarks by keyword.",
-    "Searches both bookmark names and URLs by default.",
-    "Returns matching items, one per line.",
-    "Use format 'paths' (default), 'markdown', 'hooks', or 'verbose' to control output.",
-    "Use names_only to restrict the search to bookmark names only.",
-  ].join(" "),
-  inputSchema: {
-    query: z
-      .string()
-      .min(1)
-      .describe("Search term to look for in bookmark names and URLs"),
-    format: z
-      .enum(["paths", "hooks", "markdown", "verbose"])
-      .default("markdown")
-      .describe("Output format: 'paths', 'hooks', 'markdown' (default), or 'verbose'"),
-    names_only: z
-      .boolean()
-      .default(false)
-      .describe("When true, search only bookmark names, not URLs"),
-    files_only: z
-      .boolean()
-      .default(false)
-      .describe("When true, exclude non-file items such as emails"),
-  },
-}, async ({ query, format, names_only, files_only }) => {
+  // Initialize UTCP client
+  const rawConfig: Record<string, unknown> = {
+    tool_repository: { tool_repository_type: "in_memory" },
+    tool_search_strategy: {
+      tool_search_strategy_type: "tag_and_description_word_match",
+    },
+  };
+  const clientConfig = new UtcpClientConfigSerializer().validateDict(rawConfig);
+  const client = await CodeModeUtcpClient.create(
+    path.resolve(__dirname, ".."),
+    clientConfig
+  );
+
+  const specUrl = `http://127.0.0.1:${bridgePort}/openapi`;
   try {
-    const args: string[] = ["find", "-o", format];
-    if (names_only) args.push("--names_only");
-    if (files_only) args.push("--files_only");
-    args.push(query);
+    await client.registerManual({
+      name: "hook",
+      call_template_type: "http",
+      http_method: "GET",
+      url: specUrl,
+      content_type: "application/json",
+    } as HttpCallTemplate);
 
-    const output = runHook(args);
-    if (!output) {
-      return {
-        content: [{ type: "text", text: `No bookmarks found matching '${query}'.` }],
-      };
-    }
-    return { content: [{ type: "text", text: output }] };
+    const tools = await client.config.tool_repository.getTools();
+    const hookTools = tools.filter((t) =>
+      (t as { name: string }).name.startsWith("hook.")
+    );
+    console.log(
+      `[hook] Registered hook (${hookTools.length} tools) from bridge at :${bridgePort}`
+    );
   } catch (err) {
-    return errorResponse(err);
+    console.warn("[hook] Failed to register hook manual:", err);
   }
-});
 
-// ---------------------------------------------------------------------------
-// Tool: hookmark_remove
-// ---------------------------------------------------------------------------
+  const tools = await client.getTools();
+  console.log(`[hook] Total tools discovered: ${tools.length}`);
 
-server.registerTool("hookmark_remove", {
-  description: [
-    "Remove a bidirectional hook between two items.",
-    "Both items must be referenced by their file path, URL, or hook:// URL.",
-    "This removes the link from both directions — after this call neither item",
-    "will appear in the other's hook list.",
-  ].join(" "),
-  inputSchema: {
-    item_a: z
-      .string()
-      .min(1)
-      .describe("First item: absolute file path, URL, or hook:// URL"),
-    item_b: z
-      .string()
-      .min(1)
-      .describe("Second item: absolute file path, URL, or hook:// URL"),
-  },
-}, async ({ item_a, item_b }) => {
-  try {
-    const output = runHook(["remove", item_a, item_b]);
-    return {
-      content: [
-        {
-          type: "text",
-          text: output || `Hook removed between '${item_a}' and '${item_b}'.`,
-        },
-      ],
-    };
-  } catch (err) {
-    return errorResponse(err);
-  }
-});
+  utcpClient = client;
+}
 
-// ---------------------------------------------------------------------------
-// Tool: hookmark_clone
-// ---------------------------------------------------------------------------
-
-server.registerTool("hookmark_clone", {
-  description: [
-    "Clone all hooks from one item onto another.",
-    "Every item hooked to the source will also become hooked to the destination.",
-    "The source item's hooks are not modified — this is a copy operation.",
-    "Useful when duplicating a file or moving content to a new location.",
-  ].join(" "),
-  inputSchema: {
-    source: z
-      .string()
-      .min(1)
-      .describe("Source item: absolute file path, URL, or hook:// URL to clone hooks from"),
-    destination: z
-      .string()
-      .min(1)
-      .describe("Destination item: absolute file path, URL, or hook:// URL to clone hooks onto"),
-  },
-}, async ({ source, destination }) => {
-  try {
-    const output = runHook(["clone", source, destination]);
-    return {
-      content: [
-        {
-          type: "text",
-          text: output || `Cloned hooks from '${source}' to '${destination}'.`,
-        },
-      ],
-    };
-  } catch (err) {
-    return errorResponse(err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Tool: hookmark_frontmost
-// ---------------------------------------------------------------------------
-
-server.registerTool("hookmark_frontmost", {
-  description: [
-    "Get the hook:// URL for the active document or window in the frontmost macOS application.",
-    "Brings the specified application to the foreground and creates a Hookmark bookmark",
-    "for whatever is currently active in that app (document, email, note, task, etc.).",
-    "Returns the hook:// URL that can be used with hookmark_connect to link it to other items.",
-    "Specify the app name without the '.app' suffix, e.g. 'Finder', 'Mail', 'Obsidian', 'Bear'.",
-  ].join(" "),
-  inputSchema: {
-    app: z
-      .string()
-      .min(1)
-      .describe("Application name without '.app' suffix (e.g. 'Finder', 'Mail', 'Obsidian', 'Bear', 'Xcode')"),
-    markdown: z
-      .boolean()
-      .default(false)
-      .describe("When true, return the result as a Markdown link instead of a bare hook:// URL"),
-  },
-}, async ({ app, markdown }) => {
-  try {
-    const args: string[] = ["from"];
-    if (markdown) args.push("--markdown");
-    args.push(app);
-
-    const output = runHook(args);
-    if (!output) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Could not get a Hookmark URL from '${app}'. Make sure the app is running and has an active document.`,
-          },
-        ],
-      };
-    }
-    return { content: [{ type: "text", text: output }] };
-  } catch (err) {
-    return errorResponse(err);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// Utility: extract hook:// URL from CLI output
-// ---------------------------------------------------------------------------
-
-function extractHookUrl(text: string): string | null {
-  const match = text.match(/hook:\/\/[^\s'"]+/);
-  return match ? match[0] : null;
+async function getUtcpClient(): Promise<CodeModeUtcpClient> {
+  if (!utcpClient) await bootBridgeAndClient();
+  if (!utcpClient) throw new Error("UTCP client failed to initialize");
+  return utcpClient;
 }
 
 // ---------------------------------------------------------------------------
-// Entry point
+// Identifier helpers (from code-mode-mcp reference)
+// ---------------------------------------------------------------------------
+
+function sanitizeIdentifier(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^[0-9]/, "_$&");
+}
+
+function utcpNameToTsInterfaceName(utcpName: string): string {
+  if (utcpName.includes(".")) {
+    const parts = utcpName.split(".");
+    const manualName = parts[0]!;
+    const toolParts = parts.slice(1);
+    const sanitizedManualName = sanitizeIdentifier(manualName);
+    const toolName = toolParts
+      .map((part) => sanitizeIdentifier(part))
+      .join("_");
+    return `${sanitizedManualName}.${toolName}`;
+  }
+  return sanitizeIdentifier(utcpName);
+}
+
+async function findToolByName(
+  client: CodeModeUtcpClient,
+  name: string
+): Promise<{ tool: unknown; utcpName: string } | null> {
+  const directTool = await client.config.tool_repository.getTool(name);
+  if (directTool) return { tool: directTool, utcpName: name };
+
+  const allTools = await client.config.tool_repository.getTools();
+  for (const tool of allTools) {
+    if (utcpNameToTsInterfaceName((tool as { name: string }).name) === name) {
+      return { tool, utcpName: (tool as { name: string }).name };
+    }
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// MCP Server + Tool Registration
+// ---------------------------------------------------------------------------
+
+const mcp = new McpServer(
+  { name: "hookmark-mcp", version: "0.2.0" },
+  { instructions: buildUsageGuide() }
+);
+
+function setupMcpTools(): void {
+  // ── Prompt: usage guide ──────────────────────────────────────────────
+  mcp.registerPrompt(
+    "hook_codemode_usage",
+    {
+      title: "Hookmark Code-Mode Usage Guide",
+      description:
+        "How to use the Hookmark Code-Mode MCP server for executing TypeScript code against registered Hookmark CLI tools.",
+    },
+    async () => {
+      const guide = `## Hookmark execution policy
+
+You can access Hookmark data only through registered MCP Hookmark tools.
+
+### Discovery and planning
+1. Start with \`search_tools\` using the user's natural-language task to find relevant tools. You can pass optional \`tags\` (e.g. ["clip", "link", "list", "find", "remove", "clone", "from"]) to filter results by category.
+2. Use \`list_tools\` to browse all available operations or find alternatives when search results are insufficient.
+3. Use \`tools_info\` to inspect exact TypeScript interfaces (args and return types) before writing code.
+
+### Execution strategy
+- Prefer **one \`call_tool_chain\` execution** that performs all related steps end-to-end when feasible.
+- In that TypeScript snippet, use \`hook.*\` calls (e.g. \`hook.clip({ item: '/Users/me/note.md' })\`, \`hook.link({ item_a, item_b })\`).
+- Avoid many small tool executions unless splitting is necessary (e.g., pagination checkpoints, error recovery, user-requested stepwise execution).
+
+${CodeModeUtcpClient.AGENT_PROMPT_TEMPLATE}
+
+### Output policy
+- Return **compact, decision-ready summaries** by default: counts, key fields, top-N examples, notable anomalies.
+- Do **not** return full raw datasets unless the user explicitly asks for complete payloads.
+
+### Sandbox runtime helpers
+Inside \`call_tool_chain\`, you also have access to these introspection globals:
+- \`__interfaces\` — string containing all TypeScript interface definitions for registered tools
+- \`__getToolInterface(name)\` — get the TypeScript interface for a specific tool by name
+- \`__availableTools\` — array of available tool access patterns (e.g. "hook.clip")
+
+### Available tool categories
+- \`hook.clip\` — Clip the current item to the Hookmark clipboard
+- \`hook.link\` — Create a bidirectional link between two items
+- \`hook.list\` — List hooks for a given item
+- \`hook.find\` — Find items by URL or search term
+- \`hook.remove\` — Remove a hook between items
+- \`hook.clone\` — Clone hooks from one item to another
+- \`hook.from\` — Hooks originating from a given item`;
+
+      return {
+        messages: [
+          {
+            role: "user" as const,
+            content: { type: "text" as const, text: guide },
+          },
+        ],
+      };
+    }
+  );
+
+  // ── register_manual ──────────────────────────────────────────────────
+  mcp.registerTool(
+    "register_manual",
+    {
+      title: "Register a UTCP Manual",
+      description: "Registers a new tool provider by providing its call template.",
+      inputSchema: {
+        manual_call_template: CallTemplateSchema.describe(
+          "The call template for the UTCP Manual endpoint."
+        ),
+      },
+    },
+    async (input: { manual_call_template: unknown }) => {
+      const client = await getUtcpClient();
+      try {
+        const result = await client.registerManual(
+          input.manual_call_template as CallTemplate
+        );
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result) }],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ success: false, error: msg }),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // ── deregister_manual ────────────────────────────────────────────────
+  mcp.registerTool(
+    "deregister_manual",
+    {
+      title: "Deregister a UTCP Manual",
+      description: "Deregisters a tool provider from the UTCP client.",
+      inputSchema: {
+        manual_name: z
+          .string()
+          .describe("The name of the manual to deregister."),
+      },
+    },
+    async (input: { manual_name: string }) => {
+      const client = await getUtcpClient();
+      try {
+        const success = await client.deregisterManual(input.manual_name);
+        const message = success
+          ? `Manual '${input.manual_name}' deregistered.`
+          : `Manual '${input.manual_name}' not found.`;
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ success, message }),
+            },
+          ],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ success: false, error: msg }),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // ── search_tools ─────────────────────────────────────────────────────
+  mcp.registerTool(
+    "search_tools",
+    {
+      title: "Search for Hookmark Tools",
+      description:
+        "Searches for relevant tools across Hookmark CLI subcommands based on a task description. Optionally filter by tags (e.g. 'clip', 'link', 'find') to narrow results to a specific category.",
+      inputSchema: {
+        task_description: z
+          .string()
+          .describe("A natural language description of the task."),
+        limit: z.number().optional().default(10),
+        tags: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Optional list of tags to filter by. Results must have at least one of these tags."
+          ),
+      },
+    },
+    async (input: {
+      task_description: string;
+      limit?: number;
+      tags?: string[];
+    }) => {
+      const client = await getUtcpClient();
+      try {
+        const tools = await client.searchTools(
+          input.task_description,
+          input.limit ?? 10,
+          input.tags
+        );
+        const toolsWithInterfaces = tools.map((t) => ({
+          name: utcpNameToTsInterfaceName(t.name),
+          description: t.description,
+          tags: t.tags,
+          typescript_interface: client.toolToTypeScriptInterface(t),
+        }));
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({ tools: toolsWithInterfaces }),
+            },
+          ],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: JSON.stringify({ error: msg }) }],
+        };
+      }
+    }
+  );
+
+  // ── list_tools ───────────────────────────────────────────────────────
+  mcp.registerTool(
+    "list_tools",
+    {
+      title: "List All Registered Hookmark Tools",
+      description:
+        "Returns a list of all tool names currently registered across Hookmark CLI subcommands.",
+      inputSchema: {},
+    },
+    async () => {
+      const client = await getUtcpClient();
+      try {
+        const tools = await client.config.tool_repository.getTools();
+        const toolNames = tools.map((t) =>
+          utcpNameToTsInterfaceName((t as { name: string }).name)
+        );
+        return {
+          content: [
+            { type: "text" as const, text: JSON.stringify({ tools: toolNames }) },
+          ],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: msg }],
+        };
+      }
+    }
+  );
+
+  // ── changelog ────────────────────────────────────────────────────────
+  mcp.registerTool(
+    "changelog",
+    {
+      title: "Get Runtime Changelog + Browser URL",
+      description:
+        "Returns the live browser URL for the Hookmark spec changelog UI and opens it in the default browser when enabled.",
+      inputSchema: {},
+    },
+    async () => {
+      await getUtcpClient();
+      const port = bridgePort;
+      if (!port) {
+        return {
+          isError: true,
+          content: [
+            { type: "text" as const, text: "Bridge server is not initialized." },
+          ],
+        };
+      }
+
+      const baseUrl = `http://127.0.0.1:${port}`;
+      await openInBrowser(`${baseUrl}/changelog`, {
+        autoOpen: getConfig(process.env).changelogAutoOpen,
+      });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                success: true,
+                bridge_url: baseUrl,
+                changelog_url: `${baseUrl}/changelog`,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+  );
+
+  // ── tools_info ───────────────────────────────────────────────────────
+  mcp.registerTool(
+    "tools_info",
+    {
+      title: "Get Tools Information with TypeScript Interface",
+      description:
+        "Get complete information about specified tools, including TypeScript interface definitions.",
+      inputSchema: {
+        tool_names: z
+          .array(z.string())
+          .describe(
+            "Names of the tools to get complete information for."
+          ),
+      },
+    },
+    async (input: { tool_names: string[] }) => {
+      const client = await getUtcpClient();
+      try {
+        const tsInterfaces: string[] = [];
+        const infos: string[] = [];
+
+        for (const name of input.tool_names) {
+          const found = await findToolByName(client, name);
+          if (found) {
+            tsInterfaces.push(
+              client.toolToTypeScriptInterface(
+                found.tool as Parameters<typeof client.toolToTypeScriptInterface>[0]
+              )
+            );
+          } else {
+            infos.push(`// Tool '${name}' not found`);
+          }
+        }
+
+        if (tsInterfaces.length === 0 && infos.length > 0) {
+          return {
+            isError: true,
+            content: [{ type: "text" as const, text: infos.join("\n\n") }],
+          };
+        }
+
+        let fullContent = tsInterfaces.join("\n\n");
+        if (infos.length > 0) fullContent += "\n\n" + infos.join("\n");
+
+        return {
+          content: [{ type: "text" as const, text: fullContent }],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: msg }],
+        };
+      }
+    }
+  );
+
+  // ── get_all_tool_interfaces ─────────────────────────────────────────
+  mcp.registerTool(
+    "get_all_tool_interfaces",
+    {
+      title: "Get All Tool TypeScript Interfaces",
+      description:
+        "Returns TypeScript interface definitions for all registered tools across Hookmark CLI subcommands. Useful for understanding the full API surface at once.",
+      inputSchema: {},
+    },
+    async () => {
+      const client = await getUtcpClient();
+      try {
+        const interfaces = await client.getAllToolsTypeScriptInterfaces();
+        return {
+          content: [{ type: "text" as const, text: interfaces }],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: msg }],
+        };
+      }
+    }
+  );
+
+  // ── get_required_keys_for_tool ───────────────────────────────────────
+  mcp.registerTool(
+    "get_required_keys_for_tool",
+    {
+      title: "Get Required Variables for Tool",
+      description: "Get required environment variables for a registered tool.",
+      inputSchema: {
+        tool_name: z
+          .string()
+          .describe("Name of the tool to get required variables for."),
+      },
+    },
+    async (input: { tool_name: string }) => {
+      const client = await getUtcpClient();
+      try {
+        const found = await findToolByName(client, input.tool_name);
+        if (!found) {
+          return {
+            isError: true,
+            content: [
+              {
+                type: "text" as const,
+                text: `Tool '${input.tool_name}' not found`,
+              },
+            ],
+          };
+        }
+        const variables =
+          await client.getRequiredVariablesForRegisteredTool(found.utcpName);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                success: true,
+                tool_name: input.tool_name,
+                required_variables: variables,
+              }),
+            },
+          ],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                tool_name: input.tool_name,
+                error: msg,
+              }),
+            },
+          ],
+        };
+      }
+    }
+  );
+
+  // ── call_tool_chain (the core code-mode tool) ────────────────────────
+  mcp.registerTool(
+    "call_tool_chain",
+    {
+      title: "Execute TypeScript Code with Hookmark Tool Access",
+      description:
+        "Execute TypeScript code with direct access to all registered Hookmark tools as hierarchical functions (e.g., hook.clip({ item }), hook.link({ item_a, item_b })).",
+      inputSchema: {
+        code: z
+          .string()
+          .describe(
+            "TypeScript code to execute with access to all registered Hookmark tools."
+          ),
+        timeout: z
+          .number()
+          .optional()
+          .default(30000)
+          .describe("Optional timeout in milliseconds (default: 30000)."),
+        memory_limit: z
+          .number()
+          .optional()
+          .default(128)
+          .describe(
+            "Optional memory limit in MB for the isolated-vm sandbox (default: 128)."
+          ),
+        max_output_size: z
+          .number()
+          .optional()
+          .default(200000)
+          .describe(
+            "Optional maximum output size in characters (default: 200000)."
+          ),
+      },
+    },
+    async (input: {
+      code: string;
+      timeout?: number;
+      memory_limit?: number;
+      max_output_size?: number;
+    }) => {
+      const client = await getUtcpClient();
+      const maxOutput = input.max_output_size ?? 200000;
+
+      try {
+        const { result, logs } = await client.callToolChain(
+          input.code,
+          input.timeout ?? 30000,
+          input.memory_limit ?? 128
+        );
+
+        function truncateText(text: string): string {
+          if (text.length <= maxOutput) return text;
+          return (
+            text.slice(0, maxOutput) + "...\nmax_output_size exceeded"
+          );
+        }
+
+        const content: ContentBlock[] = [];
+        const processedResult: unknown[] = [];
+
+        if (Array.isArray(result)) {
+          for (const item of result) {
+            if (ContentBlockSchema.safeParse(item).success) {
+              content.push(item as ContentBlock);
+            } else {
+              processedResult.push(item);
+            }
+          }
+        } else if (ContentBlockSchema.safeParse(result).success) {
+          content.push(result as ContentBlock);
+        } else {
+          processedResult.push(result);
+        }
+
+        const plainContent =
+          processedResult.length > 1
+            ? processedResult
+            : processedResult[0];
+        const jsonContent = JSON.stringify({
+          success: true,
+          nonMcpContentResults: plainContent,
+          logs,
+        });
+        content.push({
+          type: "text" as const,
+          text: truncateText(jsonContent),
+        });
+
+        return { content };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: msg }],
+        };
+      }
+    }
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Entry point (guarded so test imports do not start the server)
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
+  setupMcpTools();
+  await bootBridgeAndClient();
   const transport = new StdioServerTransport();
-  await server.connect(transport);
+  await mcp.connect(transport);
+  console.log("[hook] MCP server running on stdio");
 }
 
-main().catch((err) => {
-  process.stderr.write(`[hookmark-mcp] Fatal error: ${err}\n`);
-  process.exit(1);
-});
+const isMainModule =
+  typeof process.argv[1] === "string" &&
+  import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule) {
+  main().catch((err) => {
+    console.error("[hook] Fatal error:", err);
+    process.exit(1);
+  });
+}
