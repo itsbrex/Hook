@@ -37,7 +37,7 @@ import { runHook } from "./hookCli.js";
 import { loadHookCliSpec } from "./manualBuilder.js";
 import { createBridgeServer, type BridgeServer } from "./bridge.js";
 import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
-import { regenHookSpec } from "../scripts/regen_hook_spec.js";
+import { regenHookSpec } from "./regenSpec.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

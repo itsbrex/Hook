@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHookHelpOutput, buildSpecFromHelp } from "../scripts/regen_hook_spec";
+import { parseHookHelpOutput, buildSpecFromHelp } from "../src/regenSpec";
 
 const CLIP_HELP = `Usage: hook clip ITEM
 
