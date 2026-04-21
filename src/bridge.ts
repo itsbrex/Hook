@@ -19,9 +19,15 @@ function bodyToArgs(sub: HookSubcommand, body: Record<string, unknown>): string[
 
   for (const opt of sub.options) {
     const key = (opt.long ?? opt.short ?? "").replace(/^-+/, "").replace(/-/g, "_");
-    if (!key) continue;
+    if (!key || !opt.long) continue;
     const value = body[key];
-    if (value === true && opt.long) args.push(opt.long);
+    if (opt.valueArg) {
+      if (typeof value === "string" && value.length > 0) {
+        args.push(`${opt.long}=${value}`);
+      }
+    } else if (value === true) {
+      args.push(opt.long);
+    }
   }
 
   for (const p of extractPositionals(sub.usage)) {

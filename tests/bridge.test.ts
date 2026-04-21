@@ -113,6 +113,42 @@ describe("bridge server", () => {
     }
   });
 
+  it("forwards value-taking flags as --long=value in argv", async () => {
+    const runHook = vi.fn(() => "ok");
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        {
+          name: "list",
+          usage: "hook list [FILE_OR_URL]",
+          description: "",
+          options: [
+            { short: "-o", long: "--output_format", description: "", valueArg: "FORMAT" },
+          ],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ output_format: "markdown" }),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["list", "--output_format=markdown"]);
+    } finally {
+      await close();
+    }
+  });
+
   it("returns 404 for unknown operations", async () => {
     const { listen, close } = makeServer();
     const port = await listen(0);
