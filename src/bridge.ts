@@ -32,7 +32,13 @@ function bodyToArgs(sub: HookSubcommand, body: Record<string, unknown>): string[
 
   for (const p of extractPositionals(sub.usage)) {
     const v = body[p.name.toLowerCase()];
-    if (typeof v === "string" && v.length > 0) args.push(v);
+    if (Array.isArray(v)) {
+      for (const item of v) {
+        if (typeof item === "string" && item.length > 0) args.push(item);
+      }
+    } else if (typeof v === "string" && v.length > 0) {
+      args.push(v);
+    }
   }
 
   return args;
