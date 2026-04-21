@@ -80,3 +80,18 @@ describe("regen_hook_spec parser", () => {
     expect(markdown?.valueArg).toBeNull();
   });
 });
+
+const PERCENT_ENCODE_HELP = `NAME
+    encode - percent encode a string
+
+SYNOPSIS
+
+    hook [global options] percent encode STRING
+`;
+
+describe("sub-subcommand parsing", () => {
+  it("builds a percent_encode entry with cliArgs prefix", () => {
+    const parsed = parseHookHelpOutput("percent_encode", PERCENT_ENCODE_HELP);
+    expect(parsed.usage).toBe("hook percent encode STRING");
+  });
+});

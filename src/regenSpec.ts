@@ -5,6 +5,16 @@ import type { HookCliSpec, HookOption, HookSubcommand } from "./specTypes.js";
 
 export const SUBCOMMANDS = ["clip", "link", "list", "find", "remove", "clone", "from"] as const;
 
+export interface SubSubcommand {
+  name: string;
+  cliArgs: string[];
+}
+
+export const SUB_SUBCOMMANDS: readonly SubSubcommand[] = [
+  { name: "percent_encode", cliArgs: ["percent", "encode"] },
+  { name: "percent_decode", cliArgs: ["percent", "decode"] },
+] as const;
+
 // hook 2.1.3 emits man-page-style help with flush-left UPPERCASE section
 // headers: NAME / SYNOPSIS / DESCRIPTION / COMMAND OPTIONS / EXAMPLES.
 // Sections contain indented body lines and are terminated by the next header
@@ -112,11 +122,24 @@ export function regenHookSpec(opts: {
   specPath: string;
   previousPath: string;
 }): RegenResult {
-  const helps: Record<string, string> = {};
+  const subcommands: HookSubcommand[] = [];
+
   for (const sub of SUBCOMMANDS) {
-    helps[sub] = runHookHelp(opts.hookCli, sub);
+    const help = runHookHelp(opts.hookCli, sub);
+    subcommands.push(parseHookHelpOutput(sub, help));
   }
-  const spec = buildSpecFromHelp(helps, runHookVersion(opts.hookCli));
+
+  for (const ss of SUB_SUBCOMMANDS) {
+    const help = runHookHelp(opts.hookCli, ss.cliArgs.join(" "));
+    const parsed = parseHookHelpOutput(ss.name, help);
+    subcommands.push({ ...parsed, cliArgs: [...ss.cliArgs] });
+  }
+
+  const spec: HookCliSpec = {
+    generatedAt: new Date().toISOString(),
+    hookVersion: runHookVersion(opts.hookCli),
+    subcommands,
+  };
   const newRaw = JSON.stringify(spec, null, 2) + "\n";
 
   const previousRaw = existsSync(opts.specPath) ? readFileSync(opts.specPath, "utf8") : null;
