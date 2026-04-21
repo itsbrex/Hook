@@ -87,8 +87,15 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
         const output = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInput));
         res.end(JSON.stringify({ output }));
       } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        const isAuthError = /-1743|Not authorized to send Apple events/i.test(message);
+        const payload: Record<string, string> = { error: message };
+        if (isAuthError) {
+          payload.hint =
+            "macOS Automation permission required. Open System Settings > Privacy & Security > Automation and allow the process running this MCP server (Claude Code / Node) to control Hookmark.";
+        }
         res.statusCode = 500;
-        res.end(JSON.stringify({ error: e instanceof Error ? e.message : String(e) }));
+        res.end(JSON.stringify(payload));
       }
       return;
     }

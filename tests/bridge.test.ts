@@ -224,6 +224,40 @@ describe("bridge server", () => {
     }
   });
 
+  it("annotates -1743 AppleEvents errors with an automation-permission hint", async () => {
+    const runHook = vi.fn(() => {
+      throw new Error(`Command failed: hook clip /a.md\n89:136: execution error: Not authorized to send Apple events to Hookmark. (-1743)`);
+    });
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        { name: "clip", usage: "hook clip FILE_OR_URL", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/clip`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ file_or_url: "/a.md" }),
+      });
+      expect(res.status).toBe(500);
+      const body = (await res.json()) as { error: string; hint?: string };
+      expect(body.error).toContain("-1743");
+      expect(body.hint).toContain("Automation");
+      expect(body.hint).toContain("Hookmark");
+    } finally {
+      await close();
+    }
+  });
+
   it("routes POST /cp to the clip subcommand via alias", async () => {
     const runHook = vi.fn(() => "ok");
     const spec: HookCliSpec = {
