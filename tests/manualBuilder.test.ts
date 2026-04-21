@@ -11,7 +11,7 @@ const SPEC: HookCliSpec = {
       name: "clip",
       usage: "hook clip ITEM",
       description: "Generate a hook:// URL for ITEM.",
-      options: [{ short: "-m", long: "--markdown", description: "Markdown link" }],
+      options: [{ short: "-m", long: "--markdown", description: "Markdown link", valueArg: null }],
     },
   ],
 };

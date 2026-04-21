@@ -15,7 +15,7 @@ const NEXT: HookCliSpec = {
   ...BASE,
   generatedAt: "2026-04-21T00:00:00.000Z",
   subcommands: [
-    { name: "clip", usage: "hook clip ITEM", description: "New desc", options: [{ short: "-m", long: "--markdown", description: "Md link" }] },
+    { name: "clip", usage: "hook clip ITEM", description: "New desc", options: [{ short: "-m", long: "--markdown", description: "Md link", valueArg: null }] },
     { name: "pin",  usage: "hook pin ITEM",  description: "Pin ITEM.", options: [] },
   ],
 };

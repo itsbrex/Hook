@@ -60,8 +60,11 @@ function extractOptions(optLines: string[]): HookOption[] {
     const m = line.trim().match(/^(?:(-\w),\s+)?(--\[?[\w-]+?\]?[\w-]*(?:=\S+)?)\s+-\s+(.*)$/);
     if (!m) continue;
     const short = m[1] ?? null;
-    const long = m[2].replace(/^--\[no-\]/, "--").replace(/=.*$/, "");
-    options.push({ short, long, description: m[3].replace(/\s+/g, " ").trim() });
+    const longRaw = m[2];
+    const valueMatch = longRaw.match(/=(\S+)$/);
+    const valueArg = valueMatch ? valueMatch[1] : null;
+    const long = longRaw.replace(/^--\[no-\]/, "--").replace(/=.*$/, "");
+    options.push({ short, long, description: m[3].replace(/\s+/g, " ").trim(), valueArg });
   }
   return options;
 }

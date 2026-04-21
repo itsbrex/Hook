@@ -2,6 +2,7 @@ export interface HookOption {
   short: string | null;
   long: string | null;
   description: string;
+  valueArg: string | null;
 }
 
 export interface HookSubcommand {

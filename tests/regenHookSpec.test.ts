@@ -48,8 +48,8 @@ describe("regen_hook_spec parser", () => {
     expect(parsed.usage).toBe("hook clip FILE_OR_URL");
     expect(parsed.description).toContain("Creates a bookmark for the specified file or URL");
     expect(parsed.options).toEqual([
-      { short: "-a", long: "--app", description: "Copy from application (default: none)" },
-      { short: "-m", long: "--markdown", description: "Copy as Markdown" },
+      { short: "-a", long: "--app", description: "Copy from application (default: none)", valueArg: "APP_NAME" },
+      { short: "-m", long: "--markdown", description: "Copy as Markdown", valueArg: null },
     ]);
   });
 
@@ -70,5 +70,13 @@ describe("regen_hook_spec parser", () => {
     const spec = buildSpecFromHelp({ clip: CLIP_HELP, list: LIST_HELP });
     expect(spec.generatedAt).toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(spec.subcommands.map((s) => s.name)).toEqual(["clip", "list"]);
+  });
+
+  it("captures =VALUE metadata on flags that take a value", () => {
+    const parsed = parseHookHelpOutput("clip", CLIP_HELP);
+    const app = parsed.options.find((o) => o.long === "--app");
+    expect(app?.valueArg).toBe("APP_NAME");
+    const markdown = parsed.options.find((o) => o.long === "--markdown");
+    expect(markdown?.valueArg).toBeNull();
   });
 });
