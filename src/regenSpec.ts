@@ -3,7 +3,39 @@ import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import type { HookCliSpec, HookOption, HookSubcommand } from "./specTypes.js";
 
+/** @deprecated Prefer discoverCanonicalSubcommands(). Retained for tests. */
 export const SUBCOMMANDS = ["clip", "link", "list", "find", "remove", "clone", "from"] as const;
+
+const META_SUBCOMMANDS = new Set(["help", "scripts", "percent"]);
+
+export function discoverCanonicalSubcommands(topLevelHelp: string): string[] {
+  const sections = (() => {
+    const out: Record<string, string[]> = {};
+    let current: string | null = null;
+    for (const line of topLevelHelp.split("\n")) {
+      const header = line.match(/^([A-Z][A-Z ]{1,30}[A-Z])\s*$/);
+      if (header) {
+        current = header[1].trim();
+        out[current] = [];
+      } else if (current) {
+        out[current].push(line);
+      }
+    }
+    return out;
+  })();
+
+  const lines = sections.COMMANDS ?? [];
+  const result: string[] = [];
+  for (const raw of lines) {
+    const m = raw.trim().match(/^([a-z_][a-z_0-9]*)\s*(?:,\s*[a-z_][a-z_0-9]*)?\s*-/);
+    if (!m) continue;
+    const canonical = m[1];
+    if (META_SUBCOMMANDS.has(canonical)) continue;
+    if (canonical.startsWith("_")) continue;
+    result.push(canonical);
+  }
+  return result;
+}
 
 export interface SubSubcommand {
   name: string;
@@ -102,6 +134,10 @@ function runHookHelp(hookCli: string, sub: string): string {
   return execSync(`'${hookCli}' help ${sub}`, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
 }
 
+function runTopHelp(hookCli: string): string {
+  return execSync(`'${hookCli}' help`, { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] });
+}
+
 function runHookVersion(hookCli: string): string | null {
   try {
     return execSync(`'${hookCli}' --version`, { encoding: "utf-8" }).trim();
@@ -124,7 +160,8 @@ export function regenHookSpec(opts: {
 }): RegenResult {
   const subcommands: HookSubcommand[] = [];
 
-  for (const sub of SUBCOMMANDS) {
+  const canonical = discoverCanonicalSubcommands(runTopHelp(opts.hookCli));
+  for (const sub of canonical) {
     const help = runHookHelp(opts.hookCli, sub);
     subcommands.push(parseHookHelpOutput(sub, help));
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHookHelpOutput, buildSpecFromHelp } from "../src/regenSpec";
+import { parseHookHelpOutput, buildSpecFromHelp, discoverCanonicalSubcommands } from "../src/regenSpec";
 
 // Real output of `hook help clip` from hook 2.1.3. Man-page format, uppercase
 // section headers — this is what the regen script actually has to consume.
@@ -93,5 +93,38 @@ describe("sub-subcommand parsing", () => {
   it("builds a percent_encode entry with cliArgs prefix", () => {
     const parsed = parseHookHelpOutput("percent_encode", PERCENT_ENCODE_HELP);
     expect(parsed.usage).toBe("hook percent encode STRING");
+  });
+});
+
+const TOP_HELP = `NAME
+    hook - CLI interface for Hookmark (macOS)
+
+SYNOPSIS
+    hook [global options] command [command options] [arguments...]
+
+COMMANDS
+    browse       - Browse hooks
+    clip, cp     - Copy Hookmark URL for file/url to clipboard
+    clone        - Clone all hooks from one file or url onto another
+    find, search - Search bookmarks
+    from         - Get a Hookmark URL
+    help         - Shows a list of commands or help for one command
+    link, ln     - Create bidirectional hooks
+    list, ls     - List hooks on a file or url
+    open, gui    - Open in Hookmark GUI
+    percent      - Percent encode/decode a string
+    remove, rm   - Remove a hook between two files/urls
+    scripts      - Shell completion examples
+    select       - Select from hooks on a file/url
+`;
+
+describe("discoverCanonicalSubcommands", () => {
+  it("keeps canonical names and drops aliases/meta/percent", () => {
+    // percent is excluded here — it is handled as sub-subcommand (Task 7).
+    // help and scripts are excluded as meta.
+    expect(discoverCanonicalSubcommands(TOP_HELP)).toEqual([
+      "browse", "clip", "clone", "find", "from",
+      "link", "list", "open", "remove", "select",
+    ]);
   });
 });
