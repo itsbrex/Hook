@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseHookHelpOutput, buildSpecFromHelp, discoverCanonicalSubcommands } from "../src/regenSpec";
+import { parseHookHelpOutput, buildSpecFromHelp, discoverCanonicalSubcommands, extractAliases } from "../src/regenSpec";
 
 // Real output of `hook help clip` from hook 2.1.3. Man-page format, uppercase
 // section headers — this is what the regen script actually has to consume.
@@ -126,5 +126,16 @@ describe("discoverCanonicalSubcommands", () => {
       "browse", "clip", "clone", "find", "from",
       "link", "list", "open", "remove", "select",
     ]);
+  });
+});
+
+describe("extractAliases", () => {
+  it("pulls aliases from 'COMMANDS' section lines like `clip, cp - ...`", () => {
+    const help = `COMMANDS
+    clip, cp     - Copy Hookmark URL
+    link, ln     - Create bidirectional hooks
+    from         - Get a URL
+`;
+    expect(extractAliases(help)).toEqual({ clip: ["cp"], link: ["ln"], from: [] });
   });
 });

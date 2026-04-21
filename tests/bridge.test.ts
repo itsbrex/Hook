@@ -223,4 +223,39 @@ describe("bridge server", () => {
       await close();
     }
   });
+
+  it("routes POST /cp to the clip subcommand via alias", async () => {
+    const runHook = vi.fn(() => "ok");
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        {
+          name: "clip",
+          aliases: ["cp"],
+          usage: "hook clip FILE_OR_URL",
+          description: "",
+          options: [],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/cp`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ file_or_url: "/x.md" }),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["clip", "/x.md"]);
+    } finally {
+      await close();
+    }
+  });
 });

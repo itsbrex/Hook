@@ -37,6 +37,20 @@ export function discoverCanonicalSubcommands(topLevelHelp: string): string[] {
   return result;
 }
 
+export function extractAliases(topLevelHelp: string): Record<string, string[]> {
+  const result: Record<string, string[]> = {};
+  const match = topLevelHelp.match(/(?:^|\n)COMMANDS\s*\n([\s\S]*?)(?=\n[A-Z][A-Z ]{1,30}[A-Z]\s*\n|\s*$)/);
+  const body = match ? match[1] : "";
+  for (const raw of body.split("\n")) {
+    const m = raw.trim().match(/^([a-z_][a-z_0-9]*)(?:,\s*([a-z_][a-z_0-9, ]*))?\s+-/);
+    if (!m) continue;
+    const canonical = m[1];
+    const rest = m[2] ? m[2].split(",").map((s) => s.trim()).filter(Boolean) : [];
+    result[canonical] = rest;
+  }
+  return result;
+}
+
 export interface SubSubcommand {
   name: string;
   cliArgs: string[];
@@ -160,10 +174,14 @@ export function regenHookSpec(opts: {
 }): RegenResult {
   const subcommands: HookSubcommand[] = [];
 
-  const canonical = discoverCanonicalSubcommands(runTopHelp(opts.hookCli));
+  const topHelp = runTopHelp(opts.hookCli);
+  const canonical = discoverCanonicalSubcommands(topHelp);
+  const aliasMap = extractAliases(topHelp);
   for (const sub of canonical) {
     const help = runHookHelp(opts.hookCli, sub);
-    subcommands.push(parseHookHelpOutput(sub, help));
+    const parsed = parseHookHelpOutput(sub, help);
+    const aliases = aliasMap[sub] ?? [];
+    subcommands.push(aliases.length > 0 ? { ...parsed, aliases } : parsed);
   }
 
   for (const ss of SUB_SUBCOMMANDS) {

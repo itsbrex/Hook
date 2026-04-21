@@ -53,7 +53,11 @@ async function readJsonBody(req: http.IncomingMessage): Promise<Record<string, u
 }
 
 export function createBridgeServer(opts: BridgeOptions): BridgeServer {
-  const subByName = new Map(opts.spec.subcommands.map((s) => [s.name, s]));
+  const subByName = new Map<string, HookSubcommand>();
+  for (const sub of opts.spec.subcommands) {
+    subByName.set(sub.name, sub);
+    for (const alias of sub.aliases ?? []) subByName.set(alias, sub);
+  }
 
   const server = http.createServer(async (req, res) => {
     const requestUrl = new URL(req.url ?? "/", "http://127.0.0.1");
