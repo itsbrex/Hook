@@ -1,48 +1,129 @@
 {
-  "generatedAt": "2026-04-20T22:22:04.357Z",
+  "generatedAt": "2026-04-20T23:54:57.279Z",
   "hookVersion": "hook version 2.1.3",
   "subcommands": [
     {
       "name": "clip",
-      "usage": "Usage: hook clip",
-      "description": "",
-      "options": []
+      "usage": "hook clip FILE_OR_URL",
+      "description": "Creates a bookmark for the specified file or URL and copies its Hookmark URL to the clipboard. The copied Hookmark URL can be used to link to other files (use `hook link --paste FILE/URL`, or to paste into another app as a link. Use the -m flag to copy a full Markdown link.",
+      "options": [
+        {
+          "short": "-a",
+          "long": "--app",
+          "description": "Copy from application (default: none)"
+        },
+        {
+          "short": "-m",
+          "long": "--markdown",
+          "description": "Copy as Markdown"
+        }
+      ]
     },
     {
       "name": "link",
-      "usage": "Usage: hook link",
-      "description": "",
-      "options": []
+      "usage": "hook link SOURCE... TARGET",
+      "description": "If two files/urls are provided, links will be bi-directional. If three or more are provided, `link` defaults to creating bi-directional links between each file and the last file in the list. Use `-a` to create bi-directional links between every file in the list. If using `--paste`, the URL/hook link in the clipboard will be used as one argument, to be combined with one or more file/url arguments.",
+      "options": [
+        {
+          "short": "-a",
+          "long": "--all",
+          "description": "Link every listed file or url to every other"
+        },
+        {
+          "short": "-p",
+          "long": "--paste",
+          "description": "Paste URL from clipboard"
+        }
+      ]
     },
     {
       "name": "list",
-      "usage": "Usage: hook list",
-      "description": "",
-      "options": []
+      "usage": "hook list [FILE_OR_URL]...",
+      "description": "Output a list of all hooks attached to given url(s) or file(s) in the specified format (default \"paths\"). Run `hook list` with no file/url argument to list all bookmarks.",
+      "options": [
+        {
+          "short": "-f",
+          "long": "--files_only",
+          "description": "Output only bookmarks with file paths (exclude e.g. emails)"
+        },
+        {
+          "short": null,
+          "long": "--null",
+          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument"
+        },
+        {
+          "short": "-o",
+          "long": "--output_format",
+          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)"
+        },
+        {
+          "short": "-s",
+          "long": "--select",
+          "description": "Generate a menu to select hook(s) for opening"
+        }
+      ]
     },
     {
       "name": "find",
-      "usage": "Usage: hook find",
-      "description": "",
-      "options": []
+      "usage": "hook find [SEARCH_STRING]",
+      "description": "Search bookmark urls and names for a string and output in specified format (default \"paths\"). Run `hook find` with no search argument to list all bookmarks.",
+      "options": [
+        {
+          "short": "-f",
+          "long": "--files_only",
+          "description": "Output only bookmarks with file paths (exclude e.g. emails)"
+        },
+        {
+          "short": "-n",
+          "long": "--names_only",
+          "description": "Search only bookmark names"
+        },
+        {
+          "short": null,
+          "long": "--null",
+          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument"
+        },
+        {
+          "short": "-o",
+          "long": "--output_format",
+          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)"
+        }
+      ]
     },
     {
       "name": "remove",
-      "usage": "Usage: hook remove",
-      "description": "",
-      "options": []
+      "usage": "hook remove FILE_OR_URL...",
+      "description": "Remove a hook between two files or URLs. If you use --all, all hooks on a given file will be removed. If --all isn't specified, exactly two arguments (Files/URLs) are required.",
+      "options": [
+        {
+          "short": "-a",
+          "long": "--all",
+          "description": "Remove ALL links on files, requires confirmation"
+        }
+      ]
     },
     {
       "name": "clone",
-      "usage": "Usage: hook clone",
-      "description": "",
+      "usage": "hook clone SOURCE TARGET",
+      "description": "Copy all the files and urls that the first file is hooked to onto another file. Exactly two arguments (SOURCE, TARGET) required.",
       "options": []
     },
     {
       "name": "from",
-      "usage": "Usage: hook from",
-      "description": "",
-      "options": []
+      "usage": "hook from APPLICATION_NAME",
+      "description": "Specify an application by name (without '.app') to bring that app to the foreground and create a bookmark for the active document, note, task, etc., returning a Hookmark URL. Use -m to get the response as Markdown, and/or -c to copy the result directly to the clipboard.",
+      "options": [
+        {
+          "short": "-c",
+          "long": "--copy",
+          "description": "Copy to clipboard"
+        },
+        {
+          "short": "-m",
+          "long": "--markdown",
+          "description": "Output as Markdown"
+        }
+      ]
     }
   ]
 }

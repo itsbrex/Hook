@@ -5,42 +5,74 @@ import type { HookCliSpec, HookOption, HookSubcommand } from "./specTypes.js";
 
 export const SUBCOMMANDS = ["clip", "link", "list", "find", "remove", "clone", "from"] as const;
 
-export function parseHookHelpOutput(name: string, help: string): HookSubcommand {
-  const lines = help.split("\n");
-  const usageLine = lines.find((l) => /^Usage:/i.test(l)) ?? `Usage: hook ${name}`;
-
-  const descIdx = lines.findIndex((l) => /^Description:/i.test(l));
-  let description = "";
-  if (descIdx >= 0) {
-    for (let i = descIdx + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line || /^(Options|Arguments|Flags):/i.test(line)) break;
-      description += line.trim() + " ";
+// hook 2.1.3 emits man-page-style help with flush-left UPPERCASE section
+// headers: NAME / SYNOPSIS / DESCRIPTION / COMMAND OPTIONS / EXAMPLES.
+// Sections contain indented body lines and are terminated by the next header
+// or EOF.
+function splitSections(lines: string[]): Record<string, string[]> {
+  const sections: Record<string, string[]> = {};
+  let current: string | null = null;
+  for (const line of lines) {
+    const header = line.match(/^([A-Z][A-Z ]{1,30}[A-Z])\s*$/);
+    if (header) {
+      current = header[1].trim();
+      sections[current] = [];
+    } else if (current) {
+      sections[current].push(line);
     }
   }
+  return sections;
+}
 
+function extractUsageFromSynopsis(name: string, synopsis: string[]): string {
+  const hookLine = synopsis.map((l) => l.trim()).find((l) => /^hook\b/.test(l));
+  if (!hookLine) return `hook ${name}`;
+  // Strip noise that confuses the positional extractor and clutters the spec.
+  return hookLine
+    .replace(/\[global options\]\s*/g, "")
+    .replace(/\[command options\]\s*/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractDescription(desc: string[]): string {
+  const text = desc.map((l) => l.trim()).join(" ").trim();
+  return text.replace(/\s+/g, " ");
+}
+
+// COMMAND OPTIONS lines look like:
+//   -m, --markdown     - Copy as Markdown
+//   -a, --app=APP_NAME - Copy from application (default: none)
+//   --null             - Separate results with NULL separator
+//   -s, --[no-]select  - Generate a menu to select hook(s)
+// Description text can wrap onto further-indented continuation lines.
+function extractOptions(optLines: string[]): HookOption[] {
   const options: HookOption[] = [];
-  const optIdx = lines.findIndex((l) => /^Options:/i.test(l));
-  if (optIdx >= 0) {
-    for (let i = optIdx + 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (!line || /^[A-Z]\w+:/.test(line)) break;
-      const match = line.match(/^\s*(?:(-\w),\s+)?(--[\w-]+)\s+(.+)$/);
-      if (match) {
-        options.push({
-          short: match[1] ?? null,
-          long: match[2] ?? null,
-          description: match[3].trim(),
-        });
-      }
+  const joined: string[] = [];
+  for (const raw of optLines) {
+    if (/^\s{4,}-/.test(raw)) {
+      joined.push(raw);
+    } else if (raw.trim() && joined.length > 0) {
+      joined[joined.length - 1] += " " + raw.trim();
     }
   }
+  for (const line of joined) {
+    const m = line.trim().match(/^(?:(-\w),\s+)?(--\[?[\w-]+?\]?[\w-]*(?:=\S+)?)\s+-\s+(.*)$/);
+    if (!m) continue;
+    const short = m[1] ?? null;
+    const long = m[2].replace(/^--\[no-\]/, "--").replace(/=.*$/, "");
+    options.push({ short, long, description: m[3].replace(/\s+/g, " ").trim() });
+  }
+  return options;
+}
 
+export function parseHookHelpOutput(name: string, help: string): HookSubcommand {
+  const sections = splitSections(help.split("\n"));
   return {
     name,
-    usage: usageLine.trim(),
-    description: description.trim(),
-    options,
+    usage: extractUsageFromSynopsis(name, sections.SYNOPSIS ?? []),
+    description: extractDescription(sections.DESCRIPTION ?? []),
+    options: extractOptions(sections["COMMAND OPTIONS"] ?? []),
   };
 }
 
