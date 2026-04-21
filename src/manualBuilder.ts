@@ -15,18 +15,23 @@ function optionToProperty(opt: HookSubcommand["options"][number]): [string, Reco
 export interface Positional {
   name: string;
   optional: boolean;
+  variadic: boolean;
 }
 
-// Parse positional tokens from a usage line. Bracketed tokens (e.g. `[FILE]`)
-// are marked optional; bare uppercase tokens (e.g. `FILE`) are required.
-// The bracketed alternative comes first so `[FILE]` matches as a unit rather
-// than leaking `FILE` to the bare-token branch.
+// Parse positional tokens from a usage line. Bracketed tokens ([FILE]) are
+// optional; bare uppercase tokens are required. A trailing `...` marks the
+// token as variadic (one or more). Order in the usage string is preserved.
 export function extractPositionals(usage: string): Positional[] {
-  const matches = usage.match(/\[[A-Z_]{2,}\]|\b[A-Z_]{2,}\b/g) ?? [];
-  return matches.map((tok) => ({
-    name: tok.replace(/^\[|\]$/g, ""),
-    optional: tok.startsWith("["),
-  }));
+  const matches = usage.match(/\[[A-Z_]{2,}\](?:\.\.\.)?|\b[A-Z_]{2,}(?:\.\.\.)?/g) ?? [];
+  return matches.map((tok) => {
+    const variadic = tok.endsWith("...");
+    const stripped = variadic ? tok.slice(0, -3) : tok;
+    return {
+      name: stripped.replace(/^\[|\]$/g, ""),
+      optional: stripped.startsWith("["),
+      variadic,
+    };
+  });
 }
 
 function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {

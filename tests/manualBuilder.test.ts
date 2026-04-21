@@ -70,12 +70,22 @@ describe("generateOpenApiSpec", () => {
 describe("extractPositionals", () => {
   it("distinguishes bare (required) and bracketed (optional) tokens", () => {
     expect(extractPositionals("hook foo FILE [DEST]")).toEqual([
-      { name: "FILE", optional: false },
-      { name: "DEST", optional: true },
+      { name: "FILE", optional: false, variadic: false },
+      { name: "DEST", optional: true, variadic: false },
     ]);
   });
 
   it("returns empty when no positionals are present", () => {
     expect(extractPositionals("hook version")).toEqual([]);
+  });
+
+  it("marks trailing ... as variadic, whether bare or bracketed", () => {
+    expect(extractPositionals("hook link SOURCE... TARGET")).toEqual([
+      { name: "SOURCE", optional: false, variadic: true },
+      { name: "TARGET", optional: false, variadic: false },
+    ]);
+    expect(extractPositionals("hook list [FILE_OR_URL]...")).toEqual([
+      { name: "FILE_OR_URL", optional: true, variadic: true },
+    ]);
   });
 });
