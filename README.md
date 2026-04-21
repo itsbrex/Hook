@@ -393,6 +393,25 @@ Hookmark only knows about items it has bookmarked. Open a file in Hookmark first
 **"Permission denied" errors**
 Claude Code needs accessibility permissions to interact with Hookmark via AppleScript. Check System Settings > Privacy & Security > Accessibility.
 
+### "Not authorized to send Apple events to Hookmark" (error -1743)
+
+Every data-touching `hook` subcommand (`clip`, `link`, `list`, `find`, `remove`,
+`clone`, `open`, `select`, `browse`, `from`) internally uses AppleScript to talk
+to Hookmark.app. macOS requires the *process running the `hook` binary* —
+usually Claude Code or Node — to be granted Automation permission for Hookmark.
+
+**Fix:**
+
+1. Open **System Settings → Privacy & Security → Automation**.
+2. Find the entry for the app running this MCP server (typically `Claude` or
+   `Node`).
+3. Toggle the checkbox next to **Hookmark** on.
+4. Retry the command. If the toggle isn't present yet, run one hook command
+   from that app once; macOS will show the permission prompt.
+
+If the error persists after granting permission, confirm Hookmark.app is
+running and licensed, and that `hook --version` reports `2.1.3` or newer.
+
 ## Requirements
 
 - macOS (Hookmark is macOS-only)

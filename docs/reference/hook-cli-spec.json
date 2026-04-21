@@ -1,7 +1,13 @@
 {
-  "generatedAt": "2026-04-20T23:54:57.279Z",
+  "generatedAt": "2026-04-21T00:51:08.377Z",
   "hookVersion": "hook version 2.1.3",
   "subcommands": [
+    {
+      "name": "browse",
+      "usage": "hook browse PATH_OR_GLOB",
+      "description": "Select a file to see its hooks, navigate through descendents",
+      "options": []
+    },
     {
       "name": "clip",
       "usage": "hook clip FILE_OR_URL",
@@ -10,12 +16,76 @@
         {
           "short": "-a",
           "long": "--app",
-          "description": "Copy from application (default: none)"
+          "description": "Copy from application (default: none)",
+          "valueArg": "APP_NAME"
         },
         {
           "short": "-m",
           "long": "--markdown",
-          "description": "Copy as Markdown"
+          "description": "Copy as Markdown",
+          "valueArg": null
+        }
+      ],
+      "aliases": [
+        "cp"
+      ]
+    },
+    {
+      "name": "clone",
+      "usage": "hook clone SOURCE TARGET",
+      "description": "Copy all the files and urls that the first file is hooked to onto another file. Exactly two arguments (SOURCE, TARGET) required.",
+      "options": []
+    },
+    {
+      "name": "find",
+      "usage": "hook find [SEARCH_STRING]",
+      "description": "Search bookmark urls and names for a string and output in specified format (default \"paths\"). Run `hook find` with no search argument to list all bookmarks.",
+      "options": [
+        {
+          "short": "-f",
+          "long": "--files_only",
+          "description": "Output only bookmarks with file paths (exclude e.g. emails)",
+          "valueArg": null
+        },
+        {
+          "short": "-n",
+          "long": "--names_only",
+          "description": "Search only bookmark names",
+          "valueArg": null
+        },
+        {
+          "short": null,
+          "long": "--null",
+          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument",
+          "valueArg": null
+        },
+        {
+          "short": "-o",
+          "long": "--output_format",
+          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)",
+          "valueArg": "FORMAT"
+        }
+      ],
+      "aliases": [
+        "search"
+      ]
+    },
+    {
+      "name": "from",
+      "usage": "hook from APPLICATION_NAME",
+      "description": "Specify an application by name (without '.app') to bring that app to the foreground and create a bookmark for the active document, note, task, etc., returning a Hookmark URL. Use -m to get the response as Markdown, and/or -c to copy the result directly to the clipboard.",
+      "options": [
+        {
+          "short": "-c",
+          "long": "--copy",
+          "description": "Copy to clipboard",
+          "valueArg": null
+        },
+        {
+          "short": "-m",
+          "long": "--markdown",
+          "description": "Output as Markdown",
+          "valueArg": null
         }
       ]
     },
@@ -27,13 +97,18 @@
         {
           "short": "-a",
           "long": "--all",
-          "description": "Link every listed file or url to every other"
+          "description": "Link every listed file or url to every other",
+          "valueArg": null
         },
         {
           "short": "-p",
           "long": "--paste",
-          "description": "Paste URL from clipboard"
+          "description": "Paste URL from clipboard",
+          "valueArg": null
         }
+      ],
+      "aliases": [
+        "ln"
       ]
     },
     {
@@ -44,50 +119,39 @@
         {
           "short": "-f",
           "long": "--files_only",
-          "description": "Output only bookmarks with file paths (exclude e.g. emails)"
+          "description": "Output only bookmarks with file paths (exclude e.g. emails)",
+          "valueArg": null
         },
         {
           "short": null,
           "long": "--null",
-          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument"
+          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument",
+          "valueArg": null
         },
         {
           "short": "-o",
           "long": "--output_format",
-          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)"
+          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)",
+          "valueArg": "FORMAT"
         },
         {
           "short": "-s",
           "long": "--select",
-          "description": "Generate a menu to select hook(s) for opening"
+          "description": "Generate a menu to select hook(s) for opening",
+          "valueArg": null
         }
+      ],
+      "aliases": [
+        "ls"
       ]
     },
     {
-      "name": "find",
-      "usage": "hook find [SEARCH_STRING]",
-      "description": "Search bookmark urls and names for a string and output in specified format (default \"paths\"). Run `hook find` with no search argument to list all bookmarks.",
-      "options": [
-        {
-          "short": "-f",
-          "long": "--files_only",
-          "description": "Output only bookmarks with file paths (exclude e.g. emails)"
-        },
-        {
-          "short": "-n",
-          "long": "--names_only",
-          "description": "Search only bookmark names"
-        },
-        {
-          "short": null,
-          "long": "--null",
-          "description": "Separate results with NULL separator, only applies with \"paths\" output for single file argument"
-        },
-        {
-          "short": "-o",
-          "long": "--output_format",
-          "description": "Output format [(h)ooks, (p)aths, (m)arkdown, (v)erbose] (default: paths)"
-        }
+      "name": "open",
+      "usage": "hook open FILE_OR_URL",
+      "description": "Opens Hookmark on the specified file/URL for browsing and performing actions. Exactly one argument (File/URL) required.",
+      "options": [],
+      "aliases": [
+        "gui"
       ]
     },
     {
@@ -98,31 +162,38 @@
         {
           "short": "-a",
           "long": "--all",
-          "description": "Remove ALL links on files, requires confirmation"
+          "description": "Remove ALL links on files, requires confirmation",
+          "valueArg": null
         }
+      ],
+      "aliases": [
+        "rm"
       ]
     },
     {
-      "name": "clone",
-      "usage": "hook clone SOURCE TARGET",
-      "description": "Copy all the files and urls that the first file is hooked to onto another file. Exactly two arguments (SOURCE, TARGET) required.",
+      "name": "select",
+      "usage": "hook select FILE_OR_URL",
+      "description": "If the target file/URL has hooked items, a menu will be provided. Selecting one or more files from this menu will open the item(s) using the default application assigned to the filetype by macOS. Allows multiple selections with tab key, and type-ahead fuzzy filtering of results.",
       "options": []
     },
     {
-      "name": "from",
-      "usage": "hook from APPLICATION_NAME",
-      "description": "Specify an application by name (without '.app') to bring that app to the foreground and create a bookmark for the active document, note, task, etc., returning a Hookmark URL. Use -m to get the response as Markdown, and/or -c to copy the result directly to the clipboard.",
-      "options": [
-        {
-          "short": "-c",
-          "long": "--copy",
-          "description": "Copy to clipboard"
-        },
-        {
-          "short": "-m",
-          "long": "--markdown",
-          "description": "Output as Markdown"
-        }
+      "name": "percent_encode",
+      "usage": "hook percent encode STRING",
+      "description": "",
+      "options": [],
+      "cliArgs": [
+        "percent",
+        "encode"
+      ]
+    },
+    {
+      "name": "percent_decode",
+      "usage": "hook percent decode STRING",
+      "description": "",
+      "options": [],
+      "cliArgs": [
+        "percent",
+        "decode"
       ]
     }
   ]
