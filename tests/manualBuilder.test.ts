@@ -28,6 +28,29 @@ describe("generateOpenApiSpec", () => {
     expect(schema.properties.markdown).toEqual({ type: "boolean", description: "Markdown link" });
   });
 
+  it("marks value-taking flags as string in the request schema", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        {
+          name: "list",
+          usage: "hook list [FILE_OR_URL]",
+          description: "",
+          options: [
+            { short: "-o", long: "--output_format", description: "Output format", valueArg: "FORMAT" },
+            { short: "-f", long: "--files_only", description: "Files only", valueArg: null },
+          ],
+        },
+      ],
+    };
+    const openapi = generateOpenApiSpec("http://127.0.0.1:3801", spec);
+    const schema = (openapi.paths["/list"].post as { requestBody: { content: { "application/json": { schema: { properties: Record<string, { type: string }> } } } } })
+      .requestBody.content["application/json"].schema;
+    expect(schema.properties.output_format.type).toBe("string");
+    expect(schema.properties.files_only.type).toBe("boolean");
+  });
+
   it("marks bracketed positionals as optional (not in required[])", () => {
     const spec: HookCliSpec = {
       generatedAt: "2026-04-20T00:00:00.000Z",

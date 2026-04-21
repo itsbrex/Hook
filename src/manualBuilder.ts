@@ -7,7 +7,9 @@ export function loadHookCliSpec(specPath: string): HookCliSpec {
 
 function optionToProperty(opt: HookSubcommand["options"][number]): [string, Record<string, unknown>] {
   const key = (opt.long ?? opt.short ?? "").replace(/^-+/, "").replace(/-/g, "_");
-  return [key, { type: "boolean", description: opt.description }];
+  const type = opt.valueArg ? "string" : "boolean";
+  const description = opt.valueArg ? `${opt.description} (value: ${opt.valueArg})` : opt.description;
+  return [key, { type, description }];
 }
 
 export interface Positional {
