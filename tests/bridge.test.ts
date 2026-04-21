@@ -178,6 +178,41 @@ describe("bridge server", () => {
     }
   });
 
+  it("uses sub.cliArgs as invocation prefix when provided", async () => {
+    const runHook = vi.fn(() => "hello%20world");
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        {
+          name: "percent_encode",
+          cliArgs: ["percent", "encode"],
+          usage: "hook percent encode STRING",
+          description: "",
+          options: [],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/percent_encode`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ string: "hello world" }),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["percent", "encode", "hello world"]);
+    } finally {
+      await close();
+    }
+  });
+
   it("returns 404 for unknown operations", async () => {
     const { listen, close } = makeServer();
     const port = await listen(0);

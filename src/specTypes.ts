@@ -10,6 +10,7 @@ export interface HookSubcommand {
   usage: string;
   description: string;
   options: HookOption[];
+  cliArgs?: string[];
 }
 
 export interface HookCliSpec {

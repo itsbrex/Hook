@@ -15,7 +15,7 @@ export interface BridgeServer {
 }
 
 function bodyToArgs(sub: HookSubcommand, body: Record<string, unknown>): string[] {
-  const args: string[] = [sub.name];
+  const args: string[] = sub.cliArgs ? [...sub.cliArgs] : [sub.name];
 
   for (const opt of sub.options) {
     const key = (opt.long ?? opt.short ?? "").replace(/^-+/, "").replace(/-/g, "_");
