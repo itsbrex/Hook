@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bun run *)",
+      "Bash(bun test*)",
+      "Bash(bun install*)",
+      "Bash(bun add *)",
+      "Bash(bun remove *)",
+      "Bash(bun *)",
+      "Bash(npx tsc*)",
+      "Bash(tsx *)",
+      "Bash(vitest*)",
+      "Bash(node *)",
+      "Bash(npm run *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git add *)",
+      "Bash(git commit*)",
+      "Bash(git stash*)",
+      "Bash(git worktree*)",
+      "Bash(rg *)",
+      "Bash(fd *)",
+      "Bash(ls *)",
+      "Bash(cat docs/*)",
+      "Bash(cat scripts/*)",
+      "Bash(cat tests/*)",
+      "Bash(gh pr *)",
+      "Bash(gh issue *)",
+      "Bash(gh api *)",
+      "Bash(mkdir -p *)"
+    ],
+    "deny": [
+      "Bash(hook remove*)",
+      "Bash(hook clone*)",
+      "Bash(hook link*)",
+      "Bash(hook connect*)",
+      "Bash(rm -rf /*)",
+      "Bash(git push --force*)",
+      "Bash(git reset --hard*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_FILE_PATHS\" 2>/dev/null | grep -qE '\\.(ts|tsx)$' || git diff --name-only 2>/dev/null | grep -qE '\\.(ts|tsx)$'; then cd \"$CLAUDE_PROJECT_DIR\" 2>/dev/null || cd .; npx --no-install tsc --noEmit --pretty false 2>&1 | head -40 || true; fi"
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "printf '\\033[2m[hookmark-mcp]\\033[0m \\033[36m%s\\033[0m \\033[2m|\\033[0m %s' \"$(git branch --show-current 2>/dev/null || echo '-')\" \"$(node -p \"require('./package.json').version\" 2>/dev/null || echo '?')\""
+  },
+  "spinnerTipsEnabled": true
+}
