@@ -1,3 +1,24 @@
+## Known Limitations (v0.3.1)
+
+Surfaced during live testing in Claude Desktop. Documented here so the next caller doesn't re-discover them.
+
+### Hookmark JXA / indexing quirks
+
+- **Fresh bookmarks may not appear in `whose({path})` immediately.** `make_bookmark` creates the bookmark but Hookmark's index takes a tick to include it. Immediate lookups via `hook.bookmarks.whose({path: ...})()` may miss freshly-made bookmarks. Workaround: use the `address` (`hook://...`) returned from `make_bookmark` for immediate follow-up operations, or add a short retry loop on the caller side.
+- **`whose({path: X})` only matches bookmarks that HAVE a filesystem path.** Bookmarks created from web URLs (`https://...`) have `path: null`, so path-based lookups (`get_tags`, `set_tags`, `rename_bookmark`, `hook_bookmarks`, `unhook_bookmarks`) will throw `No bookmark found for path`. To operate on web URL bookmarks, iterate `hook.bookmarks()` and filter by `.address()`, or use `hook://` address lookups directly.
+- **No programmatic bookmark delete.** Hookmark exposes no `delete bookmark` verb, so bookmarks created via `make_bookmark` cannot be removed through the MCP. Delete them from the Hookmark UI.
+
+### Hookmark CLI quirks worked around in this MCP
+
+- **`hook percent encode|decode STRING` (positional form) silently emits nothing.** v0.3.1 transparently routes these through the stdin-pipe form (`hook percent encode -`) which works. Clients see the encoded/decoded string as expected.
+
+### Hookmark CLI limitations not yet worked around
+
+- **`hook remove FILE_A FILE_B` is interactive.** It prompts `y/N` on stdin and hangs in non-TTY contexts. Calling the `/remove` MCP route will time out or error. Workaround: use `/unhook_bookmarks` (JXA-backed — same semantics, no TTY dependency). See `docs/upstream-issues.md`. Note: the spec description for `remove` is regenerated from `hook help remove` on each startup, so an inline annotation in `docs/reference/hook-cli-spec.json` would be clobbered — a regen-safe override (e.g. a post-regen patch step in `src/regenSpec.ts`) is needed before the warning can live in the spec itself.
+- **Long-running enumerations can exceed the 60-second executor timeout.** `hook.all_bookmarks` and unbounded `hook.find` / `hook.list` against large Hookmark libraries (~2000+ bookmarks) may time out. Workaround: pass `timeoutMs: 120000` (or larger) in the request body to raise the per-call limit.
+
+---
+
 ## v0.3.0 — AppleScript Bridge + JSON Output
 
 v0.3.0 adds a JXA (JavaScript for Automation) bridge alongside the existing `hook` CLI bridge, exposing 15 new subcommands that the Ruby CLI can't reach, plus structured JSON output for the two most-used read commands.

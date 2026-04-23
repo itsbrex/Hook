@@ -37,6 +37,9 @@ export const TEMPLATE_ALL_BOOKMARKS = `
  * Returns (JSON): { name, path, address, tags, hookedCount }
  *
  * Throws (non-zero exit) if the path is not a known bookmark.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_BOOKMARK_BY_PATH = `
 function run(argv) {
@@ -75,6 +78,9 @@ export const TEMPLATE_COUNT_BOOKMARKS = `
  *
  * Uses JXA's `whose` filter — returns `true` iff Hookmark has at
  * least one bookmark matching the given path.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_EXISTS_BOOKMARK = `
 function run(argv) {
@@ -89,6 +95,9 @@ function run(argv) {
  * Returns (JSON): string[]
  *
  * Throws (non-zero exit) if the path is not a known bookmark.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_GET_TAGS = `
 function run(argv) {
@@ -110,6 +119,9 @@ function run(argv) {
  * Throws (non-zero exit) if the path is not a known bookmark.
  *
  * JXA write pattern: `b.tags = [...]` (property assignment, no parens).
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_SET_TAGS = `
 function run(argv) {
@@ -133,6 +145,9 @@ function run(argv) {
  * Returns (JSON): string[] — the new tag array after the union-merge.
  *
  * Throws (non-zero exit) if the path is not a known bookmark.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_ADD_TAGS = `
 function run(argv) {
@@ -159,6 +174,9 @@ function run(argv) {
  * Returns (JSON): string[] — the new tag array after the removal.
  *
  * Throws (non-zero exit) if the path is not a known bookmark.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_REMOVE_TAGS = `
 function run(argv) {
@@ -184,6 +202,9 @@ function run(argv) {
  * Throws (non-zero exit) if the path is not a known bookmark.
  *
  * JXA write pattern: `b.name = "new"` (property assignment, no parens).
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have `path: null` and won't be found by this lookup.
  */
 export const TEMPLATE_RENAME_BOOKMARK = `
 function run(argv) {
@@ -216,6 +237,10 @@ function run(argv) {
  * returned bookmark. The file at \`address\` must already exist on disk.
  *
  * JXA write pattern: \`b.name = "..."\` and \`b.tags = [...]\` (no parens).
+ *
+ * Indexing caveat: Hookmark's index may take a tick to include the new
+ * bookmark, so an immediate follow-up `whose({path})()` lookup can miss it.
+ * Prefer the returned `address` field for any immediate follow-up operations.
  */
 export const TEMPLATE_MAKE_BOOKMARK = `
 function run(argv) {
@@ -250,6 +275,9 @@ function run(argv) {
  *
  * Uses JXA shape \`hook.hook(bA, { and: bB })\` where both bookmarks are
  * resolved via \`whose({path})()\`.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have \`path: null\` and won't be found by this lookup.
  */
 export const TEMPLATE_HOOK_BOOKMARKS = `
 function run(argv) {
@@ -280,6 +308,9 @@ function run(argv) {
  *
  * Uses JXA shape \`hook.unhook(bA, { and: bB })\` where both bookmarks are
  * resolved via \`whose({path})()\`.
+ *
+ * Limitation: only matches bookmarks with a filesystem path. Web URL bookmarks
+ * (https://...) have \`path: null\` and won't be found by this lookup.
  */
 export const TEMPLATE_UNHOOK_BOOKMARKS = `
 function run(argv) {
