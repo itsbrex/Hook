@@ -42,3 +42,6 @@ tasks/
 
 # Whisper test artifacts
 test_noise.*
+
+# Local test baselines (for regression diffs)
+tests/.baseline/
