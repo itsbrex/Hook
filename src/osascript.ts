@@ -1,4 +1,21 @@
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+async function defaultExec(
+  cmd: string,
+  args: string[]
+): Promise<{ stdout: string; stderr: string }> {
+  const result = await execFileAsync(cmd, args, {
+    encoding: "utf-8",
+    timeout: 10_000,
+  });
+  return {
+    stdout: (result.stdout as string) ?? "",
+    stderr: (result.stderr as string) ?? "",
+  };
+}
 
 export function shellEscapeArg(s: string): string {
   return `'${s.replace(/'/g, "'\\''")}'`;
@@ -31,6 +48,45 @@ export class OsascriptError extends Error {
 export interface RunOsascriptOptions {
   args?: string[];
   timeoutMs?: number;
+}
+
+export type ProbeResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "permission" | "not_running" | "unknown";
+      detail?: string;
+    };
+
+export interface ProbeOptions {
+  exec?: (
+    cmd: string,
+    args: string[]
+  ) => Promise<{ stdout: string; stderr: string }>;
+}
+
+export async function probeHookmark(
+  opts: ProbeOptions = {}
+): Promise<ProbeResult> {
+  const exec = opts.exec ?? defaultExec;
+  try {
+    await exec("osascript", [
+      "-e",
+      'tell application "Hookmark" to count bookmarks',
+    ]);
+    return { ok: true };
+  } catch (err: unknown) {
+    const stderr =
+      (err as { stderr?: string }).stderr ??
+      (err instanceof Error ? err.message : String(err));
+    if (stderr.includes("-1743") || /not authorized/i.test(stderr)) {
+      return { ok: false, reason: "permission", detail: stderr.trim() };
+    }
+    if (stderr.includes("-600") || /isn.?t running/i.test(stderr)) {
+      return { ok: false, reason: "not_running", detail: stderr.trim() };
+    }
+    return { ok: false, reason: "unknown", detail: stderr.trim() };
+  }
 }
 
 export function runOsascript(

@@ -38,6 +38,7 @@ import { loadHookCliSpec } from "./manualBuilder.js";
 import { createBridgeServer, type BridgeServer } from "./bridge.js";
 import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
 import { regenHookSpec } from "./regenSpec.js";
+import { probeHookmark } from "./osascript.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -136,6 +137,22 @@ async function bootBridgeAndClient(): Promise<void> {
   }
   if (!spec) {
     spec = loadHookCliSpec(SPEC_PATH);
+  }
+
+  // Probe Hookmark AppleScript capability; flip skipApplescript on failure so
+  // we don't register AppleScript-backed subcommands when they can't run.
+  if (!cfg.skipApplescript) {
+    const probe = await probeHookmark();
+    if (!probe.ok) {
+      const hint =
+        probe.reason === "permission"
+          ? " — grant Automation permission: System Settings → Privacy & Security → Automation → <terminal app> → Hookmark"
+          : probe.reason === "not_running"
+            ? " — launch Hookmark.app to enable AppleScript-backed subcommands"
+            : "";
+      console.error(`[hook] AppleScript disabled: ${probe.reason}${hint}`);
+      cfg.skipApplescript = true;
+    }
   }
 
   // Start bridge server
