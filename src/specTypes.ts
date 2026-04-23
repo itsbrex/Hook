@@ -5,6 +5,8 @@ export interface HookOption {
   valueArg: string | null;
 }
 
+export type HookSubcommandSource = "cli" | "osascript";
+
 export interface HookSubcommand {
   name: string;
   usage: string;
@@ -12,6 +14,12 @@ export interface HookSubcommand {
   options: HookOption[];
   cliArgs?: string[];
   aliases?: string[];
+  /** Dispatch backend. Defaults to "cli" when absent. */
+  source?: HookSubcommandSource;
+  /** AppleScript source, used when source === "osascript". */
+  appleScriptSource?: string;
+  /** Name of the parser in src/applescript/parse.ts to apply to stdout. */
+  appleScriptParser?: string;
 }
 
 export interface HookCliSpec {
