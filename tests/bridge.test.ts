@@ -64,7 +64,7 @@ describe("bridge server", () => {
       generatedAt: "2026-04-20T00:00:00.000Z",
       hookVersion: "2.1.3",
       subcommands: [
-        { name: "find", usage: "hook find QUERY", description: "", options: [] },
+        { name: "find", usage: "hook find [SEARCH_STRING]", description: "", options: [] },
       ],
     };
     const { listen, close } = createBridgeServer({
@@ -75,7 +75,7 @@ describe("bridge server", () => {
     });
     const port = await listen(0);
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/find?query=attio`, {
+      const res = await fetch(`http://127.0.0.1:${port}/find?search_string=attio`, {
         method: "POST",
       });
       expect(res.status).toBe(200);
@@ -459,12 +459,12 @@ describe("bridge server", () => {
   it("POST /find with json=true returns structured records", async () => {
     const runHook = vi.fn(() =>
       [
-        "Name: Found",
-        "Address: hook://file/F",
+        "Search results for: attio",
+        "---------",
+        "Title: Found",
         "Path: /f",
-        "Hooked:",
-        "  - hook://file/G",
-        "",
+        "Address: hook://file/F",
+        "---------------------",
       ].join("\n"),
     );
     const spec: HookCliSpec = {
@@ -473,7 +473,7 @@ describe("bridge server", () => {
       subcommands: [
         {
           name: "find",
-          usage: "hook find QUERY",
+          usage: "hook find [SEARCH_STRING]",
           description: "",
           options: [
             {
@@ -497,7 +497,7 @@ describe("bridge server", () => {
       const res = await fetch(`http://127.0.0.1:${port}/find`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ query: "attio", json: true }),
+        body: JSON.stringify({ search_string: "attio", json: true }),
       });
       expect(res.status).toBe(200);
       const body = (await res.json()) as { output: unknown };
@@ -506,7 +506,7 @@ describe("bridge server", () => {
         name: "Found",
         address: "hook://file/F",
         path: "/f",
-        hooked: ["hook://file/G"],
+        hooked: [],
       });
       expect(runHook).toHaveBeenCalledWith(
         "/opt/bin/hook",
@@ -716,6 +716,97 @@ describe("bridge server", () => {
       });
       expect(res.status).toBe(200);
       expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /find with json=true uses the find-specific parser", async () => {
+    const runHook = vi.fn(() =>
+      [
+        "Search results for: linkedin",
+        "---------",
+        "Title: attio-linkedin-userscript",
+        "Path: /Users/hack/github/attio-linkedin-userscript",
+        "Address: hook://file/7lkIC2naF",
+        "---------------------",
+      ].join("\n")
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [
+        {
+          name: "find",
+          usage: "hook find [SEARCH_STRING]",
+          description: "",
+          options: [
+            { short: "-o", long: "--output_format", description: "", valueArg: "FORMAT" },
+          ],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({ spec, hookCli: "/opt/bin/hook", runHook, getChangelogHtml: () => "" });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/find`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ search_string: "linkedin", json: true }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: VerboseBookmark[] };
+      expect(body.output[0]).toEqual({
+        name: "attio-linkedin-userscript",
+        address: "hook://file/7lkIC2naF",
+        path: "/Users/hack/github/attio-linkedin-userscript",
+        hooked: [],
+      });
+      expect(runHook).toHaveBeenCalledWith(
+        "/opt/bin/hook",
+        expect.arrayContaining(["find", "--output_format=verbose", "linkedin"]),
+      );
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /find with empty body returns 400 (would hang on stdin)", async () => {
+    const runHook = vi.fn(() => "SHOULD NOT BE CALLED");
+    const spec: HookCliSpec = { generatedAt: "t", hookVersion: "1", subcommands: [
+      { name: "find", usage: "hook find [SEARCH_STRING]", description: "", options: [] },
+    ]};
+    const { listen, close } = createBridgeServer({ spec, hookCli: "/opt/bin/hook", runHook, getChangelogHtml: () => "" });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/find`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toMatch(/non-empty search_string/);
+      expect(runHook).not.toHaveBeenCalled();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /find with whitespace-only search_string returns 400", async () => {
+    const runHook = vi.fn();
+    const spec: HookCliSpec = { generatedAt: "t", hookVersion: "1", subcommands: [
+      { name: "find", usage: "hook find [SEARCH_STRING]", description: "", options: [] },
+    ]};
+    const { listen, close } = createBridgeServer({ spec, hookCli: "/opt/bin/hook", runHook, getChangelogHtml: () => "" });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/find`, {
+        method: "POST",
+        body: JSON.stringify({ search_string: "   " }),
+      });
+      expect(res.status).toBe(400);
+      expect(runHook).not.toHaveBeenCalled();
     } finally {
       await close();
     }

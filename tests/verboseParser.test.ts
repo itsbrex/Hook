@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseVerboseListing } from "../src/verboseParser";
+import { parseVerboseListing, parseVerboseFindListing } from "../src/verboseParser";
 
 describe("parseVerboseListing", () => {
   it("parses a single-record block", () => {
@@ -60,6 +60,75 @@ describe("parseVerboseListing", () => {
     const input = "Name: Only\n";
     expect(parseVerboseListing(input)).toEqual([
       { name: "Only", address: null, path: null, hooked: [] },
+    ]);
+  });
+});
+
+describe("parseVerboseFindListing", () => {
+  it("parses multi-record find output with dashed separators and Title: fields", () => {
+    const input = [
+      "Search results for: linkedin",
+      "---------",
+      "Title: attio-linkedin-userscript",
+      "Path: /Users/hack/github/attio-linkedin-userscript",
+      "Address: hook://file/7lkIC2naF?p=X&n=attio%2Dlinkedin",
+      "---------------------",
+      "Title: v0-attio-hubspot",
+      "Path: /Users/hack/github/v0-attio-hubspot",
+      "Address: hook://file/7lkLFXUUT?p=X&n=v0",
+      "---------------------",
+    ].join("\n");
+    const out = parseVerboseFindListing(input);
+    expect(out).toEqual([
+      {
+        name: "attio-linkedin-userscript",
+        address: "hook://file/7lkIC2naF?p=X&n=attio%2Dlinkedin",
+        path: "/Users/hack/github/attio-linkedin-userscript",
+        hooked: [],
+      },
+      {
+        name: "v0-attio-hubspot",
+        address: "hook://file/7lkLFXUUT?p=X&n=v0",
+        path: "/Users/hack/github/v0-attio-hubspot",
+        hooked: [],
+      },
+    ]);
+  });
+
+  it("returns [] for empty input", () => {
+    expect(parseVerboseFindListing("")).toEqual([]);
+  });
+
+  it("returns [] when header-only with no records", () => {
+    expect(
+      parseVerboseFindListing("Search results for: xyz\n---------\n")
+    ).toEqual([]);
+  });
+
+  it("handles trailing record without a final separator", () => {
+    const input = [
+      "Search results for: q",
+      "---------",
+      "Title: lonely",
+      "Path: /p",
+      "Address: hook://file/X",
+    ].join("\n");
+    expect(parseVerboseFindListing(input)).toEqual([
+      { name: "lonely", address: "hook://file/X", path: "/p", hooked: [] },
+    ]);
+  });
+
+  it("tolerates 'Name:' as alternative field (robust if Hookmark changes)", () => {
+    const input = [
+      "Search results for: x",
+      "---------",
+      "Name: alt",
+      "Path: /a",
+      "Address: hook://file/Y",
+      "---------------------",
+    ].join("\n");
+    expect(parseVerboseFindListing(input)).toEqual([
+      { name: "alt", address: "hook://file/Y", path: "/a", hooked: [] },
     ]);
   });
 });

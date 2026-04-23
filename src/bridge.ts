@@ -1,7 +1,7 @@
 import http from "node:http";
 import type { HookCliSpec, HookSubcommand } from "./specTypes.js";
 import { extractPositionals, generateOpenApiSpec } from "./manualBuilder.js";
-import { parseVerboseListing } from "./verboseParser.js";
+import { parseVerboseListing, parseVerboseFindListing } from "./verboseParser.js";
 
 export interface BridgeOptions {
   spec: HookCliSpec;
@@ -164,6 +164,20 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
         argsInputForCli.output_format = "verbose";
       }
 
+      if (sub.name === "find") {
+        const q = argsInputForCli.search_string;
+        if (typeof q !== "string" || q.trim().length === 0) {
+          res.statusCode = 400;
+          res.end(
+            JSON.stringify({
+              error:
+                "find requires a non-empty search_string (hook find with no query hangs on stdin)",
+            })
+          );
+          return;
+        }
+      }
+
       const useStdin =
         sub.name === "percent_encode" || sub.name === "percent_decode";
 
@@ -191,7 +205,12 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
               ? opts.runHook(opts.hookCli, cliArgs, { timeoutMs })
               : opts.runHook(opts.hookCli, cliArgs);
         }
-        const output: unknown = wantsJson && jsonEligible ? parseVerboseListing(rawOut) : rawOut;
+        let output: unknown = rawOut;
+        if (wantsJson && jsonEligible) {
+          output = sub.name === "find"
+            ? parseVerboseFindListing(rawOut)
+            : parseVerboseListing(rawOut);
+        }
         res.end(JSON.stringify({ output }));
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
