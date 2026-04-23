@@ -5,7 +5,7 @@ describe("project scaffold", () => {
   it("declares code-mode deps and test/dev scripts", () => {
     const pkg = JSON.parse(readFileSync("package.json", "utf8"));
     expect(pkg.type).toBe("module");
-    expect(pkg.version).toBe("0.2.0");
+    expect(pkg.version).toBe("0.3.0");
     expect(pkg.scripts.test).toBe("vitest run");
     expect(pkg.scripts.dev).toBe("tsx src/index.ts");
     expect(pkg.scripts["regen-spec"]).toBe("tsx scripts/regen_hook_spec.ts");

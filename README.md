@@ -1,3 +1,76 @@
+## v0.3.0 — AppleScript Bridge + JSON Output
+
+v0.3.0 adds a JXA (JavaScript for Automation) bridge alongside the existing `hook` CLI bridge, exposing 15 new subcommands that the Ruby CLI can't reach, plus structured JSON output for the two most-used read commands.
+
+### New JXA-backed subcommands (15)
+
+All of these call Hookmark.app directly via `osascript -l JavaScript` and return parsed JSON — no text scraping.
+
+**Bookmark enumeration**
+
+- `all_bookmarks` — return every bookmark in the Hookmark library as `VerboseBookmark[]`.
+- `bookmark` — look up a single bookmark by path or address.
+- `count_bookmarks` — return the total bookmark count.
+- `exists_bookmark` — boolean check for whether a given path/address is bookmarked.
+
+**Tags**
+
+- `get_tags` — return the tag list for a bookmark.
+- `set_tags` — replace the tag list on a bookmark.
+- `add_tags` — add tags to a bookmark without removing existing ones.
+- `remove_tags` — remove specific tags from a bookmark.
+- `bookmarks_with_tags` — return all bookmarks matching a given tag set.
+
+**Mutations**
+
+- `rename_bookmark` — change a bookmark's `name` property.
+- `make_bookmark` — create a bookmark from an address, optionally with name/tags.
+- `hook_bookmarks` — create a bidirectional link between two bookmark objects.
+- `unhook_bookmarks` — remove a bidirectional link between two bookmark objects.
+
+**Window / async handle**
+
+- `from_active_window` — get a bookmark (or async request handle) from the frontmost window of a named app, without bringing it to the foreground.
+- `by_request_handle` — resolve an async request handle returned by `from_active_window` (needed for Mail, DEVONthink, OmniFocus, etc.).
+
+### JSON output for `list` and `find`
+
+Both `list` and `find` now accept `{ json: true }` in their body. Instead of raw text, they return `VerboseBookmark[]` with shape:
+
+```ts
+{ name: string; address: string; path: string; hooked: string[] }
+```
+
+```ts
+// Before — parse the text yourself:
+call_tool_chain({ code: `return hook.list({ body: { item: "/path/to/file.md", format: "verbose" } });` })
+
+// After — structured objects:
+call_tool_chain({ code: `return hook.list({ body: { item: "/path/to/file.md", json: true } });` })
+```
+
+### macOS Automation permission (new requirement)
+
+The JXA subcommands need macOS Automation permission for the process running this server (typically Claude Code or Node) to drive Hookmark. The first call triggers the system permission dialog.
+
+If permission is denied, stderr shows:
+
+```
+[hook] AppleScript disabled: permission — grant Automation permission: System Settings → Privacy & Security → Automation → <terminal app> → Hookmark
+```
+
+…and the subcommand list auto-shrinks to the 12 CLI-only ones until the permission is granted **and the server is restarted**.
+
+### New env var: `HOOK_SKIP_APPLESCRIPT=1`
+
+Opt out of JXA subcommands entirely. Use this if you won't be granting Automation permission, if you're on a non-macOS host, or if you want to pin the exposed surface to the CLI-only subset for reproducibility.
+
+### Probe & graceful degrade
+
+On startup the server probes Hookmark with `tell application "Hookmark" to count bookmarks`. If the probe fails with `-1743` (Automation permission denied) or `-600` (Hookmark not running), the 15 JXA subcommands are silently omitted from the manual for the remainder of the session and stderr logs a one-line hint. Existing CLI subcommands continue to work.
+
+---
+
 ## v0.2.0 — Code-Mode MCP (Breaking Change)
 
 `hookmark-mcp` has been rewritten as a code-mode MCP. The seven concrete
