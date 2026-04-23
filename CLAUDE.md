@@ -17,7 +17,7 @@ Tests live in `tests/*.test.ts` (vitest).
 
 - `bun run dev` — run server with tsx
 - `bun run build` — full compile + copy assets to `dist/`
-- `bun test` / `vitest run` — run test suite
+- `npx vitest run` (or `npm test`) — run test suite. **Do not use `bun test`** — bun's embedded V8 lacks `ValueSerializer::Delegate::IsHostObject`, which `isolated-vm` needs. The `bun test` runner throws `dlopen ERR_DLOPEN_FAILED` even after `npm rebuild isolated-vm --build-from-source`. Use Node (via vitest) which has the symbol.
 - `bun run regen-spec` — manually refresh `hook-cli-spec.json`
 - `npx tsc --noEmit` — type-check only (no emit)
 
@@ -28,6 +28,17 @@ Tests live in `tests/*.test.ts` (vitest).
 - **Strict TypeScript:** no `any` without justification
 - **Test framework:** vitest — follow existing file naming (`*.test.ts` adjacent to source)
 - **Error handling:** AppleEvents errors (-1743) are macOS Automation permission issues — annotate with permission hint, do not retry
+
+## JXA (JavaScript for Automation) patterns for Hookmark
+
+The MCP's AppleScript-backed subcommands use JXA (`osascript -l JavaScript`) rather than raw AppleScript `-ss` output. Key facts verified against live Hookmark:
+
+- **Property access requires invocation:** `b.name()` not `b.name` (unlike AppleScript).
+- **No `bookmarkFrom(path)` method exists.** To find a bookmark by path, use the `whose` filter: `hook.bookmarks.whose({path: targetPath})()` — returns an array, empty if no match.
+- **Hookmark has NO "bookmark from <path>" command** in its `.sdef`. Only `bookmark from active window` (different — returns current-window bookmark or async request handle).
+- **Working getters:** `.name()`, `.path()`, `.address()`, `.tags()`, `.hookedBookmarks()` (returns array; `.length` for count).
+- **Templates return JSON:** every JXA template ends with `JSON.stringify(...)` so the dispatcher can `JSON.parse(stdout)` without a hand-rolled parser.
+- **Argv:** scripts that take args use `function run(argv) { ... }`. osascript calls `run()` automatically when defined.
 
 ## Safety rules (important)
 
