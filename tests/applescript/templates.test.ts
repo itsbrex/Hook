@@ -59,6 +59,11 @@ describe("JXA templates", () => {
       expect(TEMPLATE_BOOKMARK_BY_PATH).toContain("hookedCount");
     });
 
+    it("uses the whose-filter pattern, not bookmarkFrom", () => {
+      expect(TEMPLATE_BOOKMARK_BY_PATH).toContain("whose");
+      expect(TEMPLATE_BOOKMARK_BY_PATH).not.toContain("bookmarkFrom");
+    });
+
     it("is a trimmed string", () => {
       expect(TEMPLATE_BOOKMARK_BY_PATH).toBe(TEMPLATE_BOOKMARK_BY_PATH.trim());
     });
@@ -100,11 +105,14 @@ describe("JXA templates", () => {
       expect(TEMPLATE_EXISTS_BOOKMARK).toContain("argv[0]");
     });
 
-    it("returns boolean literals via try/catch", () => {
-      expect(TEMPLATE_EXISTS_BOOKMARK).toContain("try");
-      expect(TEMPLATE_EXISTS_BOOKMARK).toContain("catch");
-      expect(TEMPLATE_EXISTS_BOOKMARK).toMatch(/JSON\.stringify\(true\)/);
-      expect(TEMPLATE_EXISTS_BOOKMARK).toMatch(/JSON\.stringify\(false\)/);
+    it("uses the whose-filter pattern, not bookmarkFrom", () => {
+      expect(TEMPLATE_EXISTS_BOOKMARK).toContain("whose");
+      expect(TEMPLATE_EXISTS_BOOKMARK).not.toContain("bookmarkFrom");
+    });
+
+    it("returns a boolean based on match count", () => {
+      expect(TEMPLATE_EXISTS_BOOKMARK).toContain("matches.length");
+      expect(TEMPLATE_EXISTS_BOOKMARK).toMatch(/JSON\.stringify\(matches\.length > 0\)/);
     });
 
     it("is a trimmed string", () => {

@@ -42,7 +42,11 @@ export const TEMPLATE_BOOKMARK_BY_PATH = `
 function run(argv) {
   const targetPath = argv[0];
   const hook = Application("Hookmark");
-  const b = hook.bookmarkFrom(targetPath);
+  const matches = hook.bookmarks.whose({path: targetPath})();
+  if (matches.length === 0) {
+    throw new Error("No bookmark found for path: " + targetPath);
+  }
+  const b = matches[0];
   return JSON.stringify({
     name: b.name(),
     path: b.path(),
@@ -69,16 +73,12 @@ export const TEMPLATE_COUNT_BOOKMARKS = `
  *
  * Returns (JSON): boolean
  *
- * Wraps lookup in try/catch so a missing bookmark yields `false`
- * rather than a non-zero exit.
+ * Uses JXA's `whose` filter — returns `true` iff Hookmark has at
+ * least one bookmark matching the given path.
  */
 export const TEMPLATE_EXISTS_BOOKMARK = `
 function run(argv) {
-  try {
-    Application("Hookmark").bookmarkFrom(argv[0]);
-    return JSON.stringify(true);
-  } catch (e) {
-    return JSON.stringify(false);
-  }
+  const matches = Application("Hookmark").bookmarks.whose({path: argv[0]})();
+  return JSON.stringify(matches.length > 0);
 }
 `.trim();
