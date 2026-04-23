@@ -192,7 +192,7 @@ function run(argv) {
   const hook = Application("Hookmark");
   const matches = hook.bookmarks.whose({path: targetPath})();
   if (matches.length === 0) {
-    throw new Error("No bookmark for path: " + targetPath);
+    throw new Error("No bookmark found for path: " + targetPath);
   }
   const b = matches[0];
   b.name = newName;
@@ -258,11 +258,11 @@ function run(argv) {
   const hook = Application("Hookmark");
   const matchesA = hook.bookmarks.whose({path: pathA})();
   if (matchesA.length === 0) {
-    throw new Error("No bookmark for path: " + pathA);
+    throw new Error("No bookmark found for path: " + pathA);
   }
   const matchesB = hook.bookmarks.whose({path: pathB})();
   if (matchesB.length === 0) {
-    throw new Error("No bookmark for path: " + pathB);
+    throw new Error("No bookmark found for path: " + pathB);
   }
   const bA = matchesA[0];
   const bB = matchesB[0];
@@ -288,11 +288,11 @@ function run(argv) {
   const hook = Application("Hookmark");
   const matchesA = hook.bookmarks.whose({path: pathA})();
   if (matchesA.length === 0) {
-    throw new Error("No bookmark for path: " + pathA);
+    throw new Error("No bookmark found for path: " + pathA);
   }
   const matchesB = hook.bookmarks.whose({path: pathB})();
   if (matchesB.length === 0) {
-    throw new Error("No bookmark for path: " + pathB);
+    throw new Error("No bookmark found for path: " + pathB);
   }
   const bA = matchesA[0];
   const bB = matchesB[0];
