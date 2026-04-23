@@ -1,7 +1,8 @@
 // tests/manualBuilder.test.ts
 import { describe, expect, it } from "vitest";
 import { extractPositionals, generateOpenApiSpec } from "../src/manualBuilder";
-import type { HookCliSpec } from "../src/specTypes";
+import { mergeAppleScriptSubcommands } from "../src/applescript/merge";
+import type { HookCliSpec, HookSubcommand } from "../src/specTypes";
 
 const SPEC: HookCliSpec = {
   generatedAt: "2026-04-20T00:00:00.000Z",
@@ -87,5 +88,106 @@ describe("extractPositionals", () => {
     expect(extractPositionals("hook list [FILE_OR_URL]...")).toEqual([
       { name: "FILE_OR_URL", optional: true, variadic: true },
     ]);
+  });
+});
+
+describe("generateOpenApiSpec with osascript-source subcommands", () => {
+  const jxaSub = (name: string): HookSubcommand => ({
+    name,
+    usage: `hookmark ${name}`,
+    description: `${name} (JXA)`,
+    options: [],
+    source: "osascript",
+    appleScriptSource: `(() => JSON.stringify(1))();`,
+  });
+
+  const cliSub = (name: string): HookSubcommand => ({
+    name,
+    usage: `hookmark ${name}`,
+    description: `${name} (CLI)`,
+    options: [],
+  });
+
+  it("includes both CLI and JXA subcommands in paths", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [
+        cliSub("clip"),
+        cliSub("list"),
+        jxaSub("all_bookmarks"),
+        jxaSub("count_bookmarks"),
+        jxaSub("bookmark"),
+      ],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    expect(Object.keys(api.paths).sort()).toEqual([
+      "/all_bookmarks",
+      "/bookmark",
+      "/clip",
+      "/count_bookmarks",
+      "/list",
+    ]);
+  });
+
+  it("produces the same POST operation shape for JXA as for CLI", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [cliSub("clip"), jxaSub("all_bookmarks")],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const cli = api.paths["/clip"].post;
+    const jxa = api.paths["/all_bookmarks"].post;
+    expect(Object.keys(cli).sort()).toEqual(Object.keys(jxa).sort());
+    expect((jxa as { operationId: string }).operationId).toBe("all_bookmarks");
+    expect((jxa as { summary: string }).summary).toBe("all_bookmarks (JXA)");
+    expect((jxa as { description: string }).description).toBe("hookmark all_bookmarks");
+    expect(
+      (
+        jxa as {
+          responses: {
+            "200": {
+              content: {
+                "application/json": {
+                  schema: { properties: { output: { type: string } } };
+                };
+              };
+            };
+          };
+        }
+      ).responses["200"].content["application/json"].schema.properties.output.type,
+    ).toBe("string");
+  });
+
+  it("end-to-end: merging then generating OpenAPI produces all 15 JXA routes", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [],
+    };
+    mergeAppleScriptSubcommands(spec, false);
+    const api = generateOpenApiSpec("http://x", spec);
+    const jxaPaths = Object.keys(api.paths).sort();
+    expect(jxaPaths.length).toBe(15);
+    for (const expected of [
+      "/all_bookmarks",
+      "/bookmark",
+      "/count_bookmarks",
+      "/exists_bookmark",
+      "/get_tags",
+      "/set_tags",
+      "/add_tags",
+      "/remove_tags",
+      "/bookmarks_with_tags",
+      "/rename_bookmark",
+      "/make_bookmark",
+      "/hook_bookmarks",
+      "/unhook_bookmarks",
+      "/from_active_window",
+      "/by_request_handle",
+    ]) {
+      expect(jxaPaths).toContain(expected);
+    }
   });
 });
