@@ -8,6 +8,7 @@ export interface RuntimeConfig {
   bridgePort: number;
   skipRegen: boolean;
   changelogAutoOpen: boolean;
+  skipApplescript: boolean;
 }
 
 const DEFAULT_BRIDGE_PORT = 0;
@@ -103,5 +104,6 @@ export function getConfig(
     bridgePort: Number(env.HOOK_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT),
     skipRegen: env.HOOK_SKIP_REGEN === "1",
     changelogAutoOpen: env.HOOK_CHANGELOG_AUTO_OPEN !== "0",
+    skipApplescript: env.HOOK_SKIP_APPLESCRIPT === "1",
   };
 }

@@ -112,3 +112,38 @@ describe("config", () => {
     expect(c.bridgePort).toBe(0);
   });
 });
+
+describe("config.skipApplescript", () => {
+  it("defaults to false when HOOK_SKIP_APPLESCRIPT is unset", () => {
+    const cfg = getConfig({}, {
+      fileExists: () => true,
+      lookupOnPath: () => "/usr/bin/hook",
+      candidates: () => [],
+    });
+    expect(cfg.skipApplescript).toBe(false);
+  });
+
+  it("is true when HOOK_SKIP_APPLESCRIPT=1", () => {
+    const cfg = getConfig(
+      { HOOK_SKIP_APPLESCRIPT: "1" },
+      {
+        fileExists: () => true,
+        lookupOnPath: () => "/usr/bin/hook",
+        candidates: () => [],
+      }
+    );
+    expect(cfg.skipApplescript).toBe(true);
+  });
+
+  it("is false for HOOK_SKIP_APPLESCRIPT=0 (explicit off)", () => {
+    const cfg = getConfig(
+      { HOOK_SKIP_APPLESCRIPT: "0" },
+      {
+        fileExists: () => true,
+        lookupOnPath: () => "/usr/bin/hook",
+        candidates: () => [],
+      }
+    );
+    expect(cfg.skipApplescript).toBe(false);
+  });
+});
