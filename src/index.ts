@@ -39,6 +39,7 @@ import { createBridgeServer, type BridgeServer } from "./bridge.js";
 import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
 import { regenHookSpec } from "./regenSpec.js";
 import { probeHookmark, runOsascript as runOsascriptRaw } from "./osascript.js";
+import { mergeAppleScriptSubcommands } from "./applescript/merge.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -154,6 +155,11 @@ async function bootBridgeAndClient(): Promise<void> {
       cfg.skipApplescript = true;
     }
   }
+
+  // Merge JXA-backed virtual subcommands into the spec in place so the
+  // bridge can dispatch them. No-op when Automation permission is
+  // denied or Hookmark.app isn't running (probe flipped skipApplescript).
+  mergeAppleScriptSubcommands(spec, cfg.skipApplescript);
 
   // Start bridge server
   // All virtual osascript-source subcommands are JXA templates (see
