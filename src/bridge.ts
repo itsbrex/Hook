@@ -6,6 +6,7 @@ export interface BridgeOptions {
   spec: HookCliSpec;
   hookCli: string;
   runHook: (hookCli: string, args: string[]) => string;
+  runOsascript?: (script: string, args: string[]) => string;
   getChangelogHtml: () => string;
 }
 
@@ -83,6 +84,52 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
       const body = await readJsonBody(req);
       const query = Object.fromEntries(requestUrl.searchParams.entries());
       const argsInput = { ...query, ...body };
+
+      if (sub.source === "osascript") {
+        if (!opts.runOsascript) {
+          res.statusCode = 500;
+          res.end(
+            JSON.stringify({
+              error: `osascript executor not wired for '${sub.name}'`,
+            })
+          );
+          return;
+        }
+        try {
+          const positionals = extractPositionals(sub.usage);
+          const argsList: string[] = [];
+          for (const p of positionals) {
+            const v = argsInput[p.name.toLowerCase()];
+            if (Array.isArray(v)) {
+              for (const item of v)
+                if (typeof item === "string") argsList.push(item);
+            } else if (typeof v === "string") {
+              argsList.push(v);
+            }
+          }
+          const output = opts.runOsascript(
+            sub.appleScriptSource ?? "",
+            argsList
+          );
+          res.end(JSON.stringify({ output }));
+        } catch (e: unknown) {
+          const message = e instanceof Error ? e.message : String(e);
+          const hint = (e as { hint?: string })?.hint;
+          const isAuthError = /-1743|Not authorized to send Apple events/i.test(
+            message
+          );
+          const payload: Record<string, string> = { error: message };
+          if (hint) payload.hint = hint;
+          else if (isAuthError) {
+            payload.hint =
+              "macOS Automation permission required. Open System Settings > Privacy & Security > Automation and allow the process running this MCP server (Claude Code / Node) to control Hookmark.";
+          }
+          res.statusCode = 500;
+          res.end(JSON.stringify(payload));
+        }
+        return;
+      }
+
       try {
         const output = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInput));
         res.end(JSON.stringify({ output }));
