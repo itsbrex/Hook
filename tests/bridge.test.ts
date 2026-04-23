@@ -179,8 +179,18 @@ describe("bridge server", () => {
     }
   });
 
-  it("uses sub.cliArgs as invocation prefix when provided", async () => {
-    const runHook = vi.fn(() => "hello%20world");
+  it("POST /percent_encode routes via stdin with `-` arg", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        args: string[],
+        _opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(args).toEqual(["percent", "encode", "-"]);
+        expect(_opts?.stdin).toBe("hello world");
+        return "hello%20world";
+      }
+    );
     const spec: HookCliSpec = {
       generatedAt: "2026-04-20T00:00:00.000Z",
       hookVersion: "2.1.3",
@@ -208,7 +218,56 @@ describe("bridge server", () => {
         body: JSON.stringify({ string: "hello world" }),
       });
       expect(res.status).toBe(200);
-      expect(runHook).toHaveBeenCalledWith("/opt/bin/hook", ["percent", "encode", "hello world"]);
+      const body = (await res.json()) as { output: string };
+      expect(body.output).toBe("hello%20world");
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /percent_decode routes via stdin with `-` arg", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        args: string[],
+        _opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(args).toEqual(["percent", "decode", "-"]);
+        expect(_opts?.stdin).toBe("hello%20world");
+        return "hello world";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "2026-04-20T00:00:00.000Z",
+      hookVersion: "2.1.3",
+      subcommands: [
+        {
+          name: "percent_decode",
+          cliArgs: ["percent", "decode"],
+          usage: "hook percent decode STRING",
+          description: "",
+          options: [],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/percent_decode`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ string: "hello%20world" }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: string };
+      expect(body.output).toBe("hello world");
+      expect(runHook).toHaveBeenCalledOnce();
     } finally {
       await close();
     }

@@ -6,7 +6,11 @@ import { parseVerboseListing } from "./verboseParser.js";
 export interface BridgeOptions {
   spec: HookCliSpec;
   hookCli: string;
-  runHook: (hookCli: string, args: string[]) => string;
+  runHook: (
+    hookCli: string,
+    args: string[],
+    opts?: { stdin?: string; timeoutMs?: number }
+  ) => string;
   /**
    * Dispatcher for `source: "osascript"` routes. Takes a JXA script
    * (osascript -l JavaScript) and positional args, returns raw stdout
@@ -146,8 +150,26 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
         argsInputForCli.output_format = "verbose";
       }
 
+      const useStdin =
+        sub.name === "percent_encode" || sub.name === "percent_decode";
+
       try {
-        const rawOut = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInputForCli));
+        let rawOut: string;
+        if (useStdin) {
+          // The Hookmark CLI's positional-arg form for `hook percent encode|decode`
+          // exits 0 but writes nothing to stdout. The stdin-pipe form
+          // (`hook percent encode -`) works. Route these two subs via stdin.
+          const stdinInput =
+            typeof argsInputForCli.string === "string"
+              ? argsInputForCli.string
+              : "";
+          const cliArgs = sub.cliArgs
+            ? [...sub.cliArgs, "-"]
+            : [sub.name, "-"];
+          rawOut = opts.runHook(opts.hookCli, cliArgs, { stdin: stdinInput });
+        } else {
+          rawOut = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInputForCli));
+        }
         const output: unknown = wantsJson && jsonEligible ? parseVerboseListing(rawOut) : rawOut;
         res.end(JSON.stringify({ output }));
       } catch (e: unknown) {

@@ -13,13 +13,26 @@ export function extractHookUrl(text: string): string | null {
   return match ? match[0] : null;
 }
 
-export function runHook(hookCli: string, args: string[]): string {
+export interface RunHookOptions {
+  stdin?: string;
+  timeoutMs?: number;
+}
+
+export function runHook(
+  hookCli: string,
+  args: string[],
+  opts: RunHookOptions = {}
+): string {
   const cmd = buildHookCommand(hookCli, args);
   try {
     const output = execSync(cmd, {
       encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 30_000,
+      stdio:
+        opts.stdin !== undefined
+          ? ["pipe", "pipe", "pipe"]
+          : ["ignore", "pipe", "pipe"],
+      timeout: opts.timeoutMs ?? 30_000,
+      input: opts.stdin,
     });
     return output.trim();
   } catch (err: unknown) {
