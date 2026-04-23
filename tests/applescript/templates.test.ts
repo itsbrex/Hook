@@ -4,6 +4,11 @@ import {
   TEMPLATE_BOOKMARK_BY_PATH,
   TEMPLATE_COUNT_BOOKMARKS,
   TEMPLATE_EXISTS_BOOKMARK,
+  TEMPLATE_GET_TAGS,
+  TEMPLATE_SET_TAGS,
+  TEMPLATE_ADD_TAGS,
+  TEMPLATE_REMOVE_TAGS,
+  TEMPLATE_BOOKMARKS_WITH_TAGS,
 } from "../../src/applescript/templates";
 
 describe("JXA templates", () => {
@@ -117,6 +122,201 @@ describe("JXA templates", () => {
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_EXISTS_BOOKMARK).toBe(TEMPLATE_EXISTS_BOOKMARK.trim());
+    });
+  });
+});
+
+describe("JXA tag templates", () => {
+  describe("TEMPLATE_GET_TAGS", () => {
+    it("targets the Hookmark application", () => {
+      expect(TEMPLATE_GET_TAGS).toContain('Application("Hookmark")');
+    });
+
+    it("emits JSON via JSON.stringify", () => {
+      expect(TEMPLATE_GET_TAGS).toContain("JSON.stringify");
+    });
+
+    it("accepts argv via run(argv) entry point", () => {
+      expect(TEMPLATE_GET_TAGS).toContain("run(argv)");
+    });
+
+    it("reads the first argv element as path", () => {
+      expect(TEMPLATE_GET_TAGS).toContain("argv[0]");
+    });
+
+    it("uses the whose-filter pattern", () => {
+      expect(TEMPLATE_GET_TAGS).toContain("whose");
+    });
+
+    it("reads tags via .tags() getter", () => {
+      expect(TEMPLATE_GET_TAGS).toContain(".tags()");
+    });
+
+    it("is a trimmed string", () => {
+      expect(TEMPLATE_GET_TAGS).toBe(TEMPLATE_GET_TAGS.trim());
+    });
+  });
+
+  describe("TEMPLATE_SET_TAGS", () => {
+    it("targets the Hookmark application", () => {
+      expect(TEMPLATE_SET_TAGS).toContain('Application("Hookmark")');
+    });
+
+    it("emits JSON via JSON.stringify", () => {
+      expect(TEMPLATE_SET_TAGS).toContain("JSON.stringify");
+    });
+
+    it("accepts argv via run(argv) entry point", () => {
+      expect(TEMPLATE_SET_TAGS).toContain("run(argv)");
+    });
+
+    it("reads path from argv[0] and csv from argv[1]", () => {
+      expect(TEMPLATE_SET_TAGS).toContain("argv[0]");
+      expect(TEMPLATE_SET_TAGS).toContain("argv[1]");
+    });
+
+    it("uses the whose-filter pattern", () => {
+      expect(TEMPLATE_SET_TAGS).toContain("whose");
+    });
+
+    it("parses CSV via .split(',')", () => {
+      expect(TEMPLATE_SET_TAGS).toContain('.split(",")');
+    });
+
+    it("writes tags via property assignment (not a method call)", () => {
+      expect(TEMPLATE_SET_TAGS).toMatch(/\.tags\s*=/);
+    });
+
+    it("reads back tags via .tags() getter after write", () => {
+      expect(TEMPLATE_SET_TAGS).toContain(".tags()");
+    });
+
+    it("is a trimmed string", () => {
+      expect(TEMPLATE_SET_TAGS).toBe(TEMPLATE_SET_TAGS.trim());
+    });
+  });
+
+  describe("TEMPLATE_ADD_TAGS", () => {
+    it("targets the Hookmark application", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain('Application("Hookmark")');
+    });
+
+    it("emits JSON via JSON.stringify", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain("JSON.stringify");
+    });
+
+    it("accepts argv via run(argv) entry point", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain("run(argv)");
+    });
+
+    it("reads path from argv[0] and csv from argv[1]", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain("argv[0]");
+      expect(TEMPLATE_ADD_TAGS).toContain("argv[1]");
+    });
+
+    it("uses the whose-filter pattern", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain("whose");
+    });
+
+    it("parses CSV via .split(',')", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain('.split(",")');
+    });
+
+    it("reads current tags via .tags() getter", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain(".tags()");
+    });
+
+    it("writes tags via property assignment (not a method call)", () => {
+      expect(TEMPLATE_ADD_TAGS).toMatch(/\.tags\s*=/);
+    });
+
+    it("performs union-merge (skips duplicates via filter)", () => {
+      expect(TEMPLATE_ADD_TAGS).toContain("filter");
+    });
+
+    it("is a trimmed string", () => {
+      expect(TEMPLATE_ADD_TAGS).toBe(TEMPLATE_ADD_TAGS.trim());
+    });
+  });
+
+  describe("TEMPLATE_REMOVE_TAGS", () => {
+    it("targets the Hookmark application", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain('Application("Hookmark")');
+    });
+
+    it("emits JSON via JSON.stringify", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain("JSON.stringify");
+    });
+
+    it("accepts argv via run(argv) entry point", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain("run(argv)");
+    });
+
+    it("reads path from argv[0] and csv from argv[1]", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain("argv[0]");
+      expect(TEMPLATE_REMOVE_TAGS).toContain("argv[1]");
+    });
+
+    it("uses the whose-filter pattern", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain("whose");
+    });
+
+    it("parses CSV via .split(',')", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain('.split(",")');
+    });
+
+    it("reads current tags via .tags() getter", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain(".tags()");
+    });
+
+    it("writes tags via property assignment (not a method call)", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toMatch(/\.tags\s*=/);
+    });
+
+    it("filters out the given tags", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toContain("filter");
+    });
+
+    it("is a trimmed string", () => {
+      expect(TEMPLATE_REMOVE_TAGS).toBe(TEMPLATE_REMOVE_TAGS.trim());
+    });
+  });
+
+  describe("TEMPLATE_BOOKMARKS_WITH_TAGS", () => {
+    it("targets the Hookmark application", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain('Application("Hookmark")');
+    });
+
+    it("emits JSON via JSON.stringify", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("JSON.stringify");
+    });
+
+    it("accepts argv via run(argv) entry point", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("run(argv)");
+    });
+
+    it("reads csv from argv[0]", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("argv[0]");
+    });
+
+    it("parses CSV via .split(',')", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain('.split(",")');
+    });
+
+    it("uses bookmarksWithTags positional array form", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("bookmarksWithTags");
+    });
+
+    it("maps results to {name, path, address} objects", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("name");
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("path");
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("address");
+    });
+
+    it("is a trimmed string", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toBe(
+        TEMPLATE_BOOKMARKS_WITH_TAGS.trim()
+      );
     });
   });
 });

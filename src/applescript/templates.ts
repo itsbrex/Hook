@@ -82,3 +82,118 @@ function run(argv) {
   return JSON.stringify(matches.length > 0);
 }
 `.trim();
+
+/**
+ * Get the tags for a bookmark identified by its file path (argv[0]).
+ *
+ * Returns (JSON): string[]
+ *
+ * Throws (non-zero exit) if the path is not a known bookmark.
+ */
+export const TEMPLATE_GET_TAGS = `
+function run(argv) {
+  const targetPath = argv[0];
+  const hook = Application("Hookmark");
+  const matches = hook.bookmarks.whose({path: targetPath})();
+  if (matches.length === 0) {
+    throw new Error("No bookmark found for path: " + targetPath);
+  }
+  return JSON.stringify(matches[0].tags());
+}
+`.trim();
+
+/**
+ * Replace the tags on a bookmark (argv[0]=path, argv[1]=csv of tags).
+ *
+ * Returns (JSON): string[] — the new tag array after the replacement.
+ *
+ * Throws (non-zero exit) if the path is not a known bookmark.
+ *
+ * JXA write pattern: `b.tags = [...]` (property assignment, no parens).
+ */
+export const TEMPLATE_SET_TAGS = `
+function run(argv) {
+  const targetPath = argv[0];
+  const newTags = argv[1].split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+  const hook = Application("Hookmark");
+  const matches = hook.bookmarks.whose({path: targetPath})();
+  if (matches.length === 0) {
+    throw new Error("No bookmark found for path: " + targetPath);
+  }
+  const b = matches[0];
+  b.tags = newTags;
+  return JSON.stringify(b.tags());
+}
+`.trim();
+
+/**
+ * Add tags to a bookmark (argv[0]=path, argv[1]=csv of tags to add).
+ * Existing tags are preserved; duplicate tags are silently skipped.
+ *
+ * Returns (JSON): string[] — the new tag array after the union-merge.
+ *
+ * Throws (non-zero exit) if the path is not a known bookmark.
+ */
+export const TEMPLATE_ADD_TAGS = `
+function run(argv) {
+  const targetPath = argv[0];
+  const toAdd = argv[1].split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+  const hook = Application("Hookmark");
+  const matches = hook.bookmarks.whose({path: targetPath})();
+  if (matches.length === 0) {
+    throw new Error("No bookmark found for path: " + targetPath);
+  }
+  const b = matches[0];
+  const current = b.tags();
+  const merged = current.concat(toAdd.filter((t) => !current.includes(t)));
+  b.tags = merged;
+  return JSON.stringify(b.tags());
+}
+`.trim();
+
+/**
+ * Remove tags from a bookmark (argv[0]=path, argv[1]=csv of tags to remove).
+ * Tags not present on the bookmark are silently ignored.
+ *
+ * Returns (JSON): string[] — the new tag array after the removal.
+ *
+ * Throws (non-zero exit) if the path is not a known bookmark.
+ */
+export const TEMPLATE_REMOVE_TAGS = `
+function run(argv) {
+  const targetPath = argv[0];
+  const toRemove = argv[1].split(",").map((t) => t.trim());
+  const hook = Application("Hookmark");
+  const matches = hook.bookmarks.whose({path: targetPath})();
+  if (matches.length === 0) {
+    throw new Error("No bookmark found for path: " + targetPath);
+  }
+  const b = matches[0];
+  const updated = b.tags().filter((t) => !toRemove.includes(t));
+  b.tags = updated;
+  return JSON.stringify(b.tags());
+}
+`.trim();
+
+/**
+ * Find all bookmarks that have ALL of the given tags (argv[0]=csv of tags).
+ *
+ * Uses `hook.bookmarksWithTags([...])` with a positional array argument —
+ * the only verified-working form. The `whose` filter with tag arrays is
+ * known to throw "Illegal comparison" and must not be used.
+ *
+ * Returns (JSON): Array<{ name, path, address }>
+ */
+export const TEMPLATE_BOOKMARKS_WITH_TAGS = `
+function run(argv) {
+  const tags = argv[0].split(",").map((t) => t.trim()).filter((t) => t.length > 0);
+  const hook = Application("Hookmark");
+  const results = hook.bookmarksWithTags(tags);
+  const out = results.map((b) => ({
+    name: b.name(),
+    path: b.path(),
+    address: b.address(),
+  }));
+  return JSON.stringify(out);
+}
+`.trim();
