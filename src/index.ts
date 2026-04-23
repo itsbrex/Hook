@@ -156,6 +156,10 @@ async function bootBridgeAndClient(): Promise<void> {
   }
 
   // Start bridge server
+  // All virtual osascript-source subcommands are JXA templates (see
+  // src/applescript/subcommands.ts); AppleScript-dialect templates are
+  // not currently in use. If that ever changes, route via sub.language
+  // instead of hardcoding here.
   const runOsascriptAdapter = (script: string, args: string[]): string =>
     runOsascriptRaw(script, { args, language: "javascript" });
 

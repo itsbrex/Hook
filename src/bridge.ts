@@ -6,6 +6,12 @@ export interface BridgeOptions {
   spec: HookCliSpec;
   hookCli: string;
   runHook: (hookCli: string, args: string[]) => string;
+  /**
+   * Dispatcher for `source: "osascript"` routes. Takes a JXA script
+   * (osascript -l JavaScript) and positional args, returns raw stdout
+   * (typically a JSON-encoded string from `JSON.stringify(...)`).
+   * Throws `OsascriptError` on osascript failure.
+   */
   runOsascript?: (script: string, args: string[]) => string;
   getChangelogHtml: () => string;
 }
