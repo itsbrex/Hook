@@ -1,6 +1,7 @@
 import http from "node:http";
 import type { HookCliSpec, HookSubcommand } from "./specTypes.js";
 import { extractPositionals, generateOpenApiSpec } from "./manualBuilder.js";
+import { parseVerboseListing } from "./verboseParser.js";
 
 export interface BridgeOptions {
   spec: HookCliSpec;
@@ -136,8 +137,18 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
         return;
       }
 
+      const wantsJson = argsInput.json === true || argsInput.json === "true";
+      const jsonEligible = sub.name === "list" || sub.name === "find";
+      const argsInputForCli: Record<string, unknown> = { ...argsInput };
+      delete argsInputForCli.json;
+      if (wantsJson && jsonEligible) {
+        // Force verbose format so parseVerboseListing has something to parse
+        argsInputForCli.output_format = "verbose";
+      }
+
       try {
-        const output = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInput));
+        const rawOut = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInputForCli));
+        const output: unknown = wantsJson && jsonEligible ? parseVerboseListing(rawOut) : rawOut;
         res.end(JSON.stringify({ output }));
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);

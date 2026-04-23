@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createBridgeServer } from "../src/bridge";
 import type { HookCliSpec } from "../src/specTypes";
+import type { VerboseBookmark } from "../src/verboseParser";
 
 const SPEC: HookCliSpec = {
   generatedAt: "2026-04-20T00:00:00.000Z",
@@ -253,6 +254,205 @@ describe("bridge server", () => {
       expect(body.error).toContain("-1743");
       expect(body.hint).toContain("Automation");
       expect(body.hint).toContain("Hookmark");
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /list with json=true returns structured records", async () => {
+    const runHook = vi.fn(() =>
+      [
+        "Name: N",
+        "Address: hook://file/A",
+        "Path: /a",
+        "Hooked:",
+        "  - hook://file/B",
+        "",
+      ].join("\n"),
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        {
+          name: "list",
+          usage: "hook list [FILE_OR_URL]",
+          description: "",
+          options: [
+            {
+              short: "-o",
+              long: "--output_format",
+              description: "",
+              valueArg: "FORMAT",
+            },
+          ],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ file_or_url: "/a", json: true }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: unknown };
+      expect(Array.isArray(body.output)).toBe(true);
+      expect((body.output as VerboseBookmark[])[0]).toEqual({
+        name: "N",
+        address: "hook://file/A",
+        path: "/a",
+        hooked: ["hook://file/B"],
+      });
+      expect(runHook).toHaveBeenCalledWith(
+        "/opt/bin/hook",
+        expect.arrayContaining(["list", "/a", "--output_format=verbose"]),
+      );
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /list without json=true returns raw CLI stdout", async () => {
+    const runHook = vi.fn(() => "raw-output-text");
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        {
+          name: "list",
+          usage: "hook list [FILE_OR_URL]",
+          description: "",
+          options: [
+            {
+              short: "-o",
+              long: "--output_format",
+              description: "",
+              valueArg: "FORMAT",
+            },
+          ],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: unknown };
+      expect(body.output).toBe("raw-output-text");
+      const argv = runHook.mock.calls[0][1] as string[];
+      expect(argv).not.toContain("--output_format=verbose");
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /clip with json=true ignores the flag and returns raw output", async () => {
+    const runHook = vi.fn(() => "hook://file/X");
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "clip", usage: "hook clip FILE", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/clip`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ json: true, file: "/a" }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: unknown };
+      expect(body.output).toBe("hook://file/X");
+      const argv = runHook.mock.calls[0][1] as string[];
+      expect(argv).not.toContain("--output_format=verbose");
+      expect(argv.some((a) => a.includes("json"))).toBe(false);
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /find with json=true returns structured records", async () => {
+    const runHook = vi.fn(() =>
+      [
+        "Name: Found",
+        "Address: hook://file/F",
+        "Path: /f",
+        "Hooked:",
+        "  - hook://file/G",
+        "",
+      ].join("\n"),
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        {
+          name: "find",
+          usage: "hook find QUERY",
+          description: "",
+          options: [
+            {
+              short: "-o",
+              long: "--output_format",
+              description: "",
+              valueArg: "FORMAT",
+            },
+          ],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/find`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "attio", json: true }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: unknown };
+      expect(Array.isArray(body.output)).toBe(true);
+      expect((body.output as VerboseBookmark[])[0]).toEqual({
+        name: "Found",
+        address: "hook://file/F",
+        path: "/f",
+        hooked: ["hook://file/G"],
+      });
+      expect(runHook).toHaveBeenCalledWith(
+        "/opt/bin/hook",
+        expect.arrayContaining(["find", "attio", "--output_format=verbose"]),
+      );
     } finally {
       await close();
     }
