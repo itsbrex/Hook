@@ -48,6 +48,7 @@ export class OsascriptError extends Error {
 export interface RunOsascriptOptions {
   args?: string[];
   timeoutMs?: number;
+  language?: "applescript" | "javascript";
 }
 
 export type ProbeResult =
@@ -93,7 +94,11 @@ export function runOsascript(
   script: string,
   opts: RunOsascriptOptions = {}
 ): string {
-  const argv = ["-ss", "-e", script];
+  const language = opts.language ?? "applescript";
+  const argv: string[] =
+    language === "javascript"
+      ? ["-l", "JavaScript", "-e", script]
+      : ["-ss", "-e", script];
   if (opts.args && opts.args.length > 0) {
     argv.push("--");
     for (const a of opts.args) argv.push(a);

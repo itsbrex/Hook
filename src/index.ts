@@ -38,7 +38,7 @@ import { loadHookCliSpec } from "./manualBuilder.js";
 import { createBridgeServer, type BridgeServer } from "./bridge.js";
 import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
 import { regenHookSpec } from "./regenSpec.js";
-import { probeHookmark } from "./osascript.js";
+import { probeHookmark, runOsascript as runOsascriptRaw } from "./osascript.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -156,10 +156,14 @@ async function bootBridgeAndClient(): Promise<void> {
   }
 
   // Start bridge server
+  const runOsascriptAdapter = (script: string, args: string[]): string =>
+    runOsascriptRaw(script, { args, language: "javascript" });
+
   bridge = createBridgeServer({
     spec,
     hookCli: cfg.hookCli,
     runHook,
+    runOsascript: runOsascriptAdapter,
     getChangelogHtml: () => cachedChangelogHtml,
   });
   bridgePort = await bridge.listen(cfg.bridgePort);

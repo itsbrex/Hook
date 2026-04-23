@@ -50,3 +50,35 @@ describe("runOsascript", () => {
     }
   });
 });
+
+describe("runOsascript language option", () => {
+  it("executes JavaScript (JXA) when language is 'javascript'", () => {
+    // JSON.stringify(2) returns the string "2"; JXA prints that to stdout + newline.
+    const out = runOsascript("JSON.stringify(1 + 1)", { language: "javascript" });
+    expect(out.trim()).toBe("2");
+  });
+
+  it("returns JSON-encoded strings with quotes under JXA", () => {
+    // JSON.stringify("hello") returns the JSON-encoded string '"hello"'.
+    const out = runOsascript('JSON.stringify("hello")', {
+      language: "javascript",
+    });
+    expect(out.trim()).toBe('"hello"');
+  });
+
+  it("defaults to applescript when language is unset", () => {
+    // Verify the existing -ss behavior still holds (AppleScript-style quoted output).
+    const out = runOsascript('return "hello"');
+    expect(out.trim()).toBe('"hello"');
+  });
+
+  it("passes argv to JavaScript via function run(argv)", () => {
+    const script =
+      "function run(argv) { return JSON.stringify({echoed: argv[0]}); }";
+    const out = runOsascript(script, {
+      language: "javascript",
+      args: ["hello"],
+    });
+    expect(JSON.parse(out.trim())).toEqual({ echoed: "hello" });
+  });
+});
