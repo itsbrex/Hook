@@ -124,9 +124,7 @@ describe("JXA templates", () => {
       expect(TEMPLATE_EXISTS_BOOKMARK).toBe(TEMPLATE_EXISTS_BOOKMARK.trim());
     });
   });
-});
 
-describe("JXA tag templates", () => {
   describe("TEMPLATE_GET_TAGS", () => {
     it("targets the Hookmark application", () => {
       expect(TEMPLATE_GET_TAGS).toContain('Application("Hookmark")');
@@ -154,6 +152,7 @@ describe("JXA tag templates", () => {
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_GET_TAGS).toBe(TEMPLATE_GET_TAGS.trim());
+      expect(TEMPLATE_GET_TAGS.length).toBeGreaterThan(0);
     });
   });
 
@@ -193,6 +192,7 @@ describe("JXA tag templates", () => {
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_SET_TAGS).toBe(TEMPLATE_SET_TAGS.trim());
+      expect(TEMPLATE_SET_TAGS.length).toBeGreaterThan(0);
     });
   });
 
@@ -232,10 +232,12 @@ describe("JXA tag templates", () => {
 
     it("performs union-merge (skips duplicates via filter)", () => {
       expect(TEMPLATE_ADD_TAGS).toContain("filter");
+      expect(TEMPLATE_ADD_TAGS).toMatch(/!\s*current\.includes\(t\)/);
     });
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_ADD_TAGS).toBe(TEMPLATE_ADD_TAGS.trim());
+      expect(TEMPLATE_ADD_TAGS.length).toBeGreaterThan(0);
     });
   });
 
@@ -275,10 +277,12 @@ describe("JXA tag templates", () => {
 
     it("filters out the given tags", () => {
       expect(TEMPLATE_REMOVE_TAGS).toContain("filter");
+      expect(TEMPLATE_REMOVE_TAGS).toMatch(/!\s*toRemove\.includes\(t\)/);
     });
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_REMOVE_TAGS).toBe(TEMPLATE_REMOVE_TAGS.trim());
+      expect(TEMPLATE_REMOVE_TAGS.length).toBeGreaterThan(0);
     });
   });
 
@@ -308,15 +312,16 @@ describe("JXA tag templates", () => {
     });
 
     it("maps results to {name, path, address} objects", () => {
-      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("name");
-      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("path");
-      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("address");
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("name: b.name()");
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("path: b.path()");
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("address: b.address()");
     });
 
     it("is a trimmed string", () => {
       expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toBe(
         TEMPLATE_BOOKMARKS_WITH_TAGS.trim()
       );
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS.length).toBeGreaterThan(0);
     });
   });
 });

@@ -154,6 +154,7 @@ function run(argv) {
 /**
  * Remove tags from a bookmark (argv[0]=path, argv[1]=csv of tags to remove).
  * Tags not present on the bookmark are silently ignored.
+ * Empty tokens in the CSV are silently ignored.
  *
  * Returns (JSON): string[] — the new tag array after the removal.
  *
@@ -162,7 +163,7 @@ function run(argv) {
 export const TEMPLATE_REMOVE_TAGS = `
 function run(argv) {
   const targetPath = argv[0];
-  const toRemove = argv[1].split(",").map((t) => t.trim());
+  const toRemove = argv[1].split(",").map((t) => t.trim()).filter((t) => t.length > 0);
   const hook = Application("Hookmark");
   const matches = hook.bookmarks.whose({path: targetPath})();
   if (matches.length === 0) {
