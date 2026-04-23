@@ -31,7 +31,7 @@ export function runHook(
         opts.stdin !== undefined
           ? ["pipe", "pipe", "pipe"]
           : ["ignore", "pipe", "pipe"],
-      timeout: opts.timeoutMs ?? 30_000,
+      timeout: opts.timeoutMs ?? 60_000,
       input: opts.stdin,
     });
     return output.trim();

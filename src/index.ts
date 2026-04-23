@@ -166,8 +166,16 @@ async function bootBridgeAndClient(): Promise<void> {
   // src/applescript/subcommands.ts); AppleScript-dialect templates are
   // not currently in use. If that ever changes, route via sub.language
   // instead of hardcoding here.
-  const runOsascriptAdapter = (script: string, args: string[]): string =>
-    runOsascriptRaw(script, { args, language: "javascript" });
+  const runOsascriptAdapter = (
+    script: string,
+    args: string[],
+    opts?: { timeoutMs?: number }
+  ): string =>
+    runOsascriptRaw(script, {
+      args,
+      language: "javascript",
+      timeoutMs: opts?.timeoutMs,
+    });
 
   bridge = createBridgeServer({
     spec,

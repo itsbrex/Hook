@@ -49,7 +49,7 @@ describe("runHook with options", () => {
     ];
     expect(execOpts.input).toBe("hello world");
     expect(execOpts.stdio).toEqual(["pipe", "pipe", "pipe"]);
-    expect(execOpts.timeout).toBe(30_000);
+    expect(execOpts.timeout).toBe(60_000);
   });
 
   it("omits input and uses ignore stdio when opts is empty", async () => {
@@ -64,7 +64,7 @@ describe("runHook with options", () => {
     ];
     expect(execOpts.input).toBeUndefined();
     expect(execOpts.stdio).toEqual(["ignore", "pipe", "pipe"]);
-    expect(execOpts.timeout).toBe(30_000);
+    expect(execOpts.timeout).toBe(60_000);
   });
 
   it("respects opts.timeoutMs override", async () => {

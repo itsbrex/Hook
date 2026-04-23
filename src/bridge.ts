@@ -17,7 +17,11 @@ export interface BridgeOptions {
    * (typically a JSON-encoded string from `JSON.stringify(...)`).
    * Throws `OsascriptError` on osascript failure.
    */
-  runOsascript?: (script: string, args: string[]) => string;
+  runOsascript?: (
+    script: string,
+    args: string[],
+    opts?: { timeoutMs?: number }
+  ) => string;
   getChangelogHtml: () => string;
 }
 
@@ -96,6 +100,11 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
       const query = Object.fromEntries(requestUrl.searchParams.entries());
       const argsInput = { ...query, ...body };
 
+      const timeoutMs =
+        typeof argsInput.timeoutMs === "number" && argsInput.timeoutMs > 0
+          ? argsInput.timeoutMs
+          : undefined;
+
       if (sub.source === "osascript") {
         if (!opts.runOsascript) {
           res.statusCode = 500;
@@ -118,10 +127,14 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
               argsList.push(v);
             }
           }
-          const output = opts.runOsascript(
-            sub.appleScriptSource ?? "",
-            argsList
-          );
+          const output =
+            timeoutMs !== undefined
+              ? opts.runOsascript(
+                  sub.appleScriptSource ?? "",
+                  argsList,
+                  { timeoutMs }
+                )
+              : opts.runOsascript(sub.appleScriptSource ?? "", argsList);
           res.end(JSON.stringify({ output }));
         } catch (e: unknown) {
           const message = e instanceof Error ? e.message : String(e);
@@ -145,6 +158,7 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
       const jsonEligible = sub.name === "list" || sub.name === "find";
       const argsInputForCli: Record<string, unknown> = { ...argsInput };
       delete argsInputForCli.json;
+      delete argsInputForCli.timeoutMs;
       if (wantsJson && jsonEligible) {
         // Force verbose format so parseVerboseListing has something to parse
         argsInputForCli.output_format = "verbose";
@@ -166,9 +180,16 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
           const cliArgs = sub.cliArgs
             ? [...sub.cliArgs, "-"]
             : [sub.name, "-"];
-          rawOut = opts.runHook(opts.hookCli, cliArgs, { stdin: stdinInput });
+          rawOut = opts.runHook(opts.hookCli, cliArgs, {
+            stdin: stdinInput,
+            ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+          });
         } else {
-          rawOut = opts.runHook(opts.hookCli, bodyToArgs(sub, argsInputForCli));
+          const cliArgs = bodyToArgs(sub, argsInputForCli);
+          rawOut =
+            timeoutMs !== undefined
+              ? opts.runHook(opts.hookCli, cliArgs, { timeoutMs })
+              : opts.runHook(opts.hookCli, cliArgs);
         }
         const output: unknown = wantsJson && jsonEligible ? parseVerboseListing(rawOut) : rawOut;
         res.end(JSON.stringify({ output }));

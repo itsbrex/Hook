@@ -517,6 +517,210 @@ describe("bridge server", () => {
     }
   });
 
+  it("POST /list with timeoutMs passes override to runHook", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(opts?.timeoutMs).toBe(90_000);
+        expect(args).not.toContain("timeoutMs");
+        expect(args.some((a) => a.includes("timeoutMs"))).toBe(false);
+        return "ok";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ timeoutMs: 90_000 }),
+      });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { output: unknown };
+      expect(body.output).toBe("ok");
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /list without timeoutMs leaves the executor default in place", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        _args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(opts?.timeoutMs).toBeUndefined();
+        return "ok";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /list with non-numeric timeoutMs ignores the override", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        _args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(opts?.timeoutMs).toBeUndefined();
+        return "ok";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ timeoutMs: "not-a-number" }),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /list with timeoutMs <= 0 ignores the override", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        _args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(opts?.timeoutMs).toBeUndefined();
+        return "ok";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      for (const bad of [-1, 0]) {
+        const res = await fetch(`http://127.0.0.1:${port}/list`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ timeoutMs: bad }),
+        });
+        expect(res.status).toBe(200);
+      }
+      expect(runHook).toHaveBeenCalledTimes(2);
+    } finally {
+      await close();
+    }
+  });
+
+  it("POST /percent_encode honors body timeoutMs via stdin branch", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(args).toEqual(["percent", "encode", "-"]);
+        expect(opts?.stdin).toBe("x");
+        expect(opts?.timeoutMs).toBe(45_000);
+        return "x";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        {
+          name: "percent_encode",
+          cliArgs: ["percent", "encode"],
+          usage: "hook percent encode STRING",
+          description: "",
+          options: [],
+        },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/percent_encode`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ string: "x", timeoutMs: 45_000 }),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
   it("routes POST /cp to the clip subcommand via alias", async () => {
     const runHook = vi.fn(() => "ok");
     const spec: HookCliSpec = {

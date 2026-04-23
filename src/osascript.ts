@@ -107,7 +107,7 @@ export function runOsascript(
     return execFileSync("/usr/bin/osascript", argv, {
       encoding: "utf-8",
       stdio: ["ignore", "pipe", "pipe"],
-      timeout: opts.timeoutMs ?? 30_000,
+      timeout: opts.timeoutMs ?? 60_000,
     });
   } catch (err: unknown) {
     if (err && typeof err === "object") {
