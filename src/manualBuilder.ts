@@ -34,6 +34,23 @@ export function extractPositionals(usage: string): Positional[] {
   });
 }
 
+const VERBOSE_BOOKMARK_ARRAY_SCHEMA: Record<string, unknown> = {
+  type: "array",
+  items: {
+    type: "object",
+    properties: {
+      name: { type: "string", nullable: true },
+      address: { type: "string", nullable: true },
+      path: { type: "string", nullable: true },
+      hooked: { type: "array", items: { type: "string" } },
+    },
+  },
+};
+
+function supportsJsonFlag(subName: string): boolean {
+  return subName === "list" || subName === "find";
+}
+
 function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   const positional = extractPositionals(sub.usage);
@@ -47,11 +64,34 @@ function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
     if (key) properties[key] = schema;
   }
 
+  // Phase 4.3: expose `json=true` flag for list/find so callers know it's available.
+  if (supportsJsonFlag(sub.name)) {
+    properties.json = {
+      type: "boolean",
+      description:
+        "When true, bridge forces --output_format=verbose and post-processes stdout into VerboseBookmark[] (name, address, path, hooked).",
+    };
+  }
+
   return {
     type: "object",
     properties,
     required: positional.filter((p) => !p.optional).map((p) => p.name.toLowerCase()),
   };
+}
+
+function buildResponseSchema(sub: HookSubcommand): Record<string, unknown> {
+  if (supportsJsonFlag(sub.name)) {
+    return {
+      type: "object",
+      properties: {
+        output: {
+          oneOf: [{ type: "string" }, VERBOSE_BOOKMARK_ARRAY_SCHEMA],
+        },
+      },
+    };
+  }
+  return { type: "object", properties: { output: { type: "string" } } };
 }
 
 export interface OpenApiDocument {
@@ -76,8 +116,9 @@ export function generateOpenApiSpec(baseUrl: string, spec: HookCliSpec): OpenApi
         },
         responses: {
           "200": {
-            description: "CLI output",
-            content: { "application/json": { schema: { type: "object", properties: { output: { type: "string" } } } } },
+            description:
+              "CLI output (string) or structured records (array when json=true — list/find only)",
+            content: { "application/json": { schema: buildResponseSchema(sub) } },
           },
         },
       },

@@ -63,8 +63,137 @@ describe("generateOpenApiSpec", () => {
     const openapi = generateOpenApiSpec("http://127.0.0.1:3801", spec);
     const schema = (openapi.paths["/list"].post as { requestBody: { content: { "application/json": { schema: { properties: Record<string, unknown>; required: string[] } } } } })
       .requestBody.content["application/json"].schema;
-    expect(Object.keys(schema.properties).sort()).toEqual(["optional", "required"]);
+    expect(Object.keys(schema.properties).sort()).toEqual(["json", "optional", "required"]);
     expect(schema.required).toEqual(["required"]);
+  });
+});
+
+describe("generateOpenApiSpec with list/find json option", () => {
+  it("exposes json boolean property for list", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const schema = (
+      api.paths["/list"].post as {
+        requestBody: {
+          content: { "application/json": { schema: { properties: Record<string, { type: string; description: string }> } } };
+        };
+      }
+    ).requestBody.content["application/json"].schema.properties;
+    expect(schema.json).toEqual({
+      type: "boolean",
+      description: expect.stringContaining("VerboseBookmark"),
+    });
+  });
+
+  it("exposes json boolean property for find", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "find", usage: "hook find QUERY", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const schema = (
+      api.paths["/find"].post as {
+        requestBody: {
+          content: { "application/json": { schema: { properties: Record<string, { type: string; description: string }> } } };
+        };
+      }
+    ).requestBody.content["application/json"].schema.properties;
+    expect(schema.json).toEqual({
+      type: "boolean",
+      description: expect.stringContaining("VerboseBookmark"),
+    });
+  });
+
+  it("does not add json property for other subcommands", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "clip", usage: "hook clip FILE", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const schema = (
+      api.paths["/clip"].post as {
+        requestBody: { content: { "application/json": { schema: { properties: Record<string, unknown> } } } };
+      }
+    ).requestBody.content["application/json"].schema.properties;
+    expect(schema).not.toHaveProperty("json");
+  });
+
+  it("list response schema has oneOf for string and array output", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const outputSchema = (
+      api.paths["/list"].post as {
+        responses: {
+          "200": {
+            content: {
+              "application/json": {
+                schema: { properties: { output: { oneOf: Array<Record<string, unknown>> } } };
+              };
+            };
+          };
+        };
+      }
+    ).responses["200"].content["application/json"].schema.properties.output;
+    expect(outputSchema).toHaveProperty("oneOf");
+    expect(outputSchema.oneOf.length).toBe(2);
+  });
+
+  it("find response schema has oneOf for string and array output", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "find", usage: "hook find QUERY", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const outputSchema = (
+      api.paths["/find"].post as {
+        responses: {
+          "200": {
+            content: {
+              "application/json": {
+                schema: { properties: { output: { oneOf: Array<Record<string, unknown>> } } };
+              };
+            };
+          };
+        };
+      }
+    ).responses["200"].content["application/json"].schema.properties.output;
+    expect(outputSchema).toHaveProperty("oneOf");
+    expect(outputSchema.oneOf.length).toBe(2);
+  });
+
+  it("other subcommand response output schema is plain string", () => {
+    const spec: HookCliSpec = {
+      generatedAt: "t",
+      hookVersion: "1",
+      subcommands: [{ name: "clip", usage: "hook clip FILE", description: "", options: [] }],
+    };
+    const api = generateOpenApiSpec("http://x", spec);
+    const outputSchema = (
+      api.paths["/clip"].post as {
+        responses: {
+          "200": {
+            content: {
+              "application/json": {
+                schema: { properties: { output: { type?: string; oneOf?: unknown } } };
+              };
+            };
+          };
+        };
+      }
+    ).responses["200"].content["application/json"].schema.properties.output;
+    expect(outputSchema.type).toBe("string");
+    expect(outputSchema).not.toHaveProperty("oneOf");
   });
 });
 
