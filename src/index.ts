@@ -701,8 +701,10 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
         timeout: z
           .number()
           .optional()
-          .default(30000)
-          .describe("Optional timeout in milliseconds (default: 30000)."),
+          .default(120000)
+          .describe(
+            "Sandbox execution timeout in milliseconds (default: 120000). This limits how long the TypeScript snippet as a whole can run. For individual tool calls that need more time (e.g. hook.all_bookmarks on a large library), ALSO pass timeoutMs in the tool's body to extend the per-tool executor timeout."
+          ),
         memory_limit: z
           .number()
           .optional()
@@ -731,7 +733,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       try {
         const { result, logs } = await client.callToolChain(
           input.code,
-          input.timeout ?? 30000,
+          input.timeout ?? 120000,
           input.memory_limit ?? 128
         );
 
