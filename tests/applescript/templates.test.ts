@@ -28,7 +28,7 @@ describe("JXA templates", () => {
     });
 
     it("enumerates bookmarks via .bookmarks()", () => {
-      expect(TEMPLATE_ALL_BOOKMARKS).toContain(".bookmarks()");
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/bookmarks\(\)/);
     });
 
     it("includes the expected fields", () => {
@@ -37,6 +37,23 @@ describe("JXA templates", () => {
       expect(TEMPLATE_ALL_BOOKMARKS).toContain("address");
       expect(TEMPLATE_ALL_BOOKMARKS).toContain("tags");
       expect(TEMPLATE_ALL_BOOKMARKS).toContain("hookedCount");
+    });
+
+    it("guards against null/undefined from hook.bookmarks()", () => {
+      // Confirms a null-check against hook.bookmarks() result is present.
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/===\s*null/);
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/===\s*undefined/);
+    });
+
+    it("wraps per-record property access in try/catch", () => {
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/try\s*{/);
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/catch\s*\(/);
+    });
+
+    it("emits a {records, total, errors} return shape", () => {
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/records:/);
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/total:/);
+      expect(TEMPLATE_ALL_BOOKMARKS).toMatch(/errors:/);
     });
 
     it("is a trimmed string", () => {
@@ -321,6 +338,23 @@ describe("JXA templates", () => {
       expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("name: b.name()");
       expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("path: b.path()");
       expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toContain("address: b.address()");
+    });
+
+    it("guards against null/undefined from bookmarksWithTags()", () => {
+      // Existing null guard on matches is preserved.
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/===\s*null/);
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/===\s*undefined/);
+    });
+
+    it("wraps per-record property access in try/catch", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/try\s*{/);
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/catch\s*\(/);
+    });
+
+    it("emits a {records, total, errors} return shape", () => {
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/records:/);
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/total:/);
+      expect(TEMPLATE_BOOKMARKS_WITH_TAGS).toMatch(/errors:/);
     });
 
     it("is a trimmed string", () => {

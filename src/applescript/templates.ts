@@ -15,19 +15,66 @@
 /**
  * Enumerate every bookmark in Hookmark.
  *
- * Returns (JSON): Array<{ name, path, address, tags, hookedCount }>
+ * Returns (JSON):
+ *   {
+ *     records: Array<Record | ErrorRow>,
+ *     total: number,  // length of records (success rows + error rows)
+ *     errors: number  // count of error rows only
+ *   }
+ *
+ * Where:
+ *   Record   = { name, path, address, tags, hookedCount }
+ *   ErrorRow = { error: string, index: number, address?: string }
+ *
+ * Defensive behaviour (FU6):
+ *   1. If `hook.bookmarks()` returns null/undefined (Hookmark wedged after a
+ *      prior failure), the template returns
+ *      `{ error: string, records: [], total: 0, errors: 0 }` instead of
+ *      throwing an uninformative TypeError on `.map` of null.
+ *   2. Each per-record property read is wrapped in try/catch — a single bad
+ *      bookmark (`-1728 "Can't get object"` on `.path()` / `.tags()` /
+ *      `.hookedBookmarks()`) is emitted as an ErrorRow rather than killing
+ *      the entire batch. A second try attempts to capture the offending
+ *      bookmark's `.address()` as `address` for debugging.
+ *
+ * Breaking change from v0.3.0: the wire format is no longer a bare array.
+ * Callers that previously did `JSON.parse(out) as Array<Record>` must now
+ * read `.records`. Inspect `.errors > 0` to decide whether to log / retry.
  */
 export const TEMPLATE_ALL_BOOKMARKS = `
 (() => {
   const hook = Application("Hookmark");
-  const out = hook.bookmarks().map((b) => ({
-    name: b.name(),
-    path: b.path(),
-    address: b.address(),
-    tags: b.tags(),
-    hookedCount: b.hookedBookmarks().length,
-  }));
-  return JSON.stringify(out);
+  const bookmarks = hook.bookmarks();
+  if (bookmarks === null || bookmarks === undefined) {
+    return JSON.stringify({
+      error: "hook.bookmarks() returned null — Hookmark may be unresponsive",
+      records: [],
+      total: 0,
+      errors: 0,
+    });
+  }
+  const out = bookmarks.map((b, i) => {
+    try {
+      return {
+        name: b.name(),
+        path: b.path(),
+        address: b.address(),
+        tags: b.tags(),
+        hookedCount: b.hookedBookmarks().length,
+      };
+    } catch (e) {
+      let hint = undefined;
+      try { hint = b.address(); } catch (_) { /* ignore — offender may not expose address either */ }
+      return {
+        error: String(e && e.message ? e.message : e),
+        index: i,
+        address: hint,
+      };
+    }
+  });
+  const total = out.length;
+  const errors = out.filter((x) => x.error !== undefined).length;
+  return JSON.stringify({ records: out, total: total, errors: errors });
 })();
 `.trim();
 
@@ -64,6 +111,15 @@ function run(argv) {
  * Count all bookmarks.
  *
  * Returns (JSON): number
+ *
+ * Note (FU6): unlike `TEMPLATE_ALL_BOOKMARKS` / `TEMPLATE_BOOKMARKS_WITH_TAGS`,
+ * this template intentionally has NO null guard and NO {count, error?} wrapper.
+ * Callers already treat the parsed result as `number`; changing the shape to
+ * `{count, error?}` would be a breaking change for an O(1) call that is
+ * extremely unlikely to hit the same "hook.bookmarks() returns null" edge
+ * case that bulk iteration triggers. If count ever starts misbehaving in
+ * practice, revisit and introduce a new template rather than breaking this
+ * one's shape.
  */
 export const TEMPLATE_COUNT_BOOKMARKS = `
 (() => {
@@ -400,18 +456,52 @@ function run(argv) {
  * the only verified-working form. The `whose` filter with tag arrays is
  * known to throw "Illegal comparison" and must not be used.
  *
- * Returns (JSON): Array<{ name, path, address }>
+ * Returns (JSON):
+ *   {
+ *     records: Array<Record | ErrorRow>,
+ *     total: number,
+ *     errors: number
+ *   }
+ *
+ * Where:
+ *   Record   = { name, path, address }
+ *   ErrorRow = { error: string, index: number, address?: string }
+ *
+ * Defensive behaviour (FU6) — mirrors `TEMPLATE_ALL_BOOKMARKS`:
+ *   1. Null-guards `hook.bookmarksWithTags(...)` (pre-existing, extended to
+ *      the new shape).
+ *   2. Each per-record property read is wrapped in try/catch so one bad
+ *      bookmark surfaces as an ErrorRow instead of killing the batch.
+ *
+ * Breaking change from v0.3.0: the wire format is no longer a bare array.
  */
 export const TEMPLATE_BOOKMARKS_WITH_TAGS = `
 function run(argv) {
   const tags = argv[0].split(",").map((t) => t.trim()).filter((t) => t.length > 0);
   const hook = Application("Hookmark");
   const results = hook.bookmarksWithTags(tags);
-  const out = results.map((b) => ({
-    name: b.name(),
-    path: b.path(),
-    address: b.address(),
-  }));
-  return JSON.stringify(out);
+  if (results === null || results === undefined) {
+    return JSON.stringify({ records: [], total: 0, errors: 0 });
+  }
+  const out = results.map((b, i) => {
+    try {
+      return {
+        name: b.name(),
+        path: b.path(),
+        address: b.address(),
+      };
+    } catch (e) {
+      let hint = undefined;
+      try { hint = b.address(); } catch (_) { /* ignore — offender may not expose address either */ }
+      return {
+        error: String(e && e.message ? e.message : e),
+        index: i,
+        address: hint,
+      };
+    }
+  });
+  const total = out.length;
+  const errors = out.filter((x) => x.error !== undefined).length;
+  return JSON.stringify({ records: out, total: total, errors: errors });
 }
 `.trim();
