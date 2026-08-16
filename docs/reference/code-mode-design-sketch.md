@@ -41,7 +41,7 @@
 
 5. **`src/changelog.ts`** — diffs old vs new `hook-cli-spec.json`, renders HTML at `/changelog` on the bridge. Surfaces CLI-upgrade drift (e.g. new `--flag` appearing in `hook list`). Direct port from Brandjet.
 
-6. **`src/index.ts`** — slim orchestrator. Loads dotenv, constructs `CodeModeUtcpClient`, starts bridge, registers the 9 meta-tools, connects to stdio. Mirrors Brandjet's `index.ts` structure.
+6. **`src/index.ts`** — slim orchestrator. Loads dotenv, constructs `CodeModeUtcpClient`, starts bridge, registers seven canonical tools plus three Hook extensions, and connects to stdio.
 
 ## What's different from Attio's plan (deliberately cut)
 
@@ -51,9 +51,11 @@
 - **Task 0 (OAuth probe) and Task 4–5 (OAuth + token refresh) from Attio plan are dropped entirely**
 - **No `HOOK_MCP_URL` config** — `HOOK_CLI` path is the only runtime env var
 
-## What stays identical to Attio/Brandjet
+## Canonical and Hook-specific surface
 
-- 9 meta-tools, same names, same order: `register_manual`, `deregister_manual`, `search_tools`, `list_tools`, `changelog`, `tools_info`, `get_all_tool_interfaces`, `get_required_keys_for_tool`, `call_tool_chain`
+- Seven canonical tools: `register_manual`, `deregister_manual`, `search_tools`, `list_tools`, `get_required_keys_for_tool`, `tools_info`, `call_tool_chain`.
+- Hook extensions: `changelog` and `hook_get_all_tool_interfaces`.
+- Deprecated one-window alias: `get_all_tool_interfaces`.
 - UTCP code-mode client, HTTP bridge, OpenAPI manual registered as `hook`
 - Checked-in spec fixture + changelog drift detection
 - TDD task structure (test → implement → commit)
@@ -67,4 +69,4 @@ The package's 7 concrete tools (`hookmark_link`, etc.) are removed. `hookmark-mc
 
 - **Goal:** full code-mode parity — chain commands, OpenAPI self-describing, consistency with Brandjet/Attio, full types/shapes from hook CLI help similar to how Attio/Brandjet code-mode tool chains consume.
 - **Spec generation:** Option C — build-time script (`scripts/regen_hook_spec.ts`) writes `docs/reference/hook-cli-spec.json`, server loads the checked-in file at runtime. Deterministic runtime, one command to refresh, committed file gives a diff when `hook` updates.
-- **Tool surface:** Option A — pure code-mode. Drop the 7 concrete tools, expose only the 9 meta-tools. Matches Attio/Brandjet exactly.
+- **Tool surface:** pure code-mode. Drop seven concrete tools, keep exact canonical seven separate from Hook-specific extensions.

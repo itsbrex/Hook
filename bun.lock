@@ -6,7 +6,7 @@
       "name": "hookmark-mcp",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",
-        "@utcp/code-mode": "^1.2.11",
+        "@utcp/code-mode": "^1.2.12",
         "@utcp/dotenv-loader": "^1.1.0",
         "@utcp/http": "^1.1.0",
         "@utcp/sdk": "^1.1.0",
@@ -134,7 +134,7 @@
 
     "@types/node": ["@types/node@22.19.13", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-akNQMv0wW5uyRpD2v2IEyRSZiR+BeGuoB6L310EgGObO44HSMNT8z1xzio28V8qOrgYaopIDNA18YgdXd+qTiw=="],
 
-    "@utcp/code-mode": ["@utcp/code-mode@1.2.11", "", { "peerDependencies": { "@utcp/sdk": "^1.1.0", "isolated-vm": "^6.0.0" } }, "sha512-nCDB1CXB56A1/0lFPuybeul4/3SkobVpP9xav/CvoFp+KAFPKH30OpQUVq8/8BHIN0cPYCrXwViivUyrxk6H+A=="],
+    "@utcp/code-mode": ["@utcp/code-mode@1.2.12", "", { "peerDependencies": { "@utcp/sdk": "^1.1.0", "isolated-vm": "^6.0.0" } }, "sha512-LnqLrrQfIVVGl2s5poF72CiN217UDcqpGK12oteEg6kI4eYK53sCg66Y6fp59oq6TvJl22QMR5xmjHBY1KrahQ=="],
 
     "@utcp/dotenv-loader": ["@utcp/dotenv-loader@1.1.0", "", { "dependencies": { "dotenv": "^17.2.1", "zod": "^3.23.8" }, "peerDependencies": { "@utcp/sdk": "^1.1.0" } }, "sha512-kgziyumoeWVnCBtcQ59VJEDJXE/M/Or62TPamBVGVpyvNWyz4xH0CjLsN+k95I8NElZma45s4jgWoQrUMB6ARw=="],
 

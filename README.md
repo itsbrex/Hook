@@ -18,7 +18,7 @@ Surfaced during live testing in Claude Desktop. Documented here so the next call
 - **Long-running enumerations can exceed the 60-second executor timeout.** `hook.all_bookmarks` and unbounded `hook.find` / `hook.list` against large Hookmark libraries (~2000+ bookmarks) may time out. Workaround: pass `timeoutMs: 120000` (or larger) in the request body to raise the per-call limit.
 - **`hook.all_bookmarks` / `hook.bookmarks_with_tags` return a `{records, total, errors}` shape.** Individual bookmarks that error during iteration appear as `{error, index, address?}` rows rather than crashing the batch. Inspect `errors > 0` to decide whether to log or retry. This is a breaking change from v0.3.0's bare-array return — callers that previously did `JSON.parse(out) as Array<VerboseBookmark>` must now read `.records`.
 - **Two timeouts govern long operations:**
-  1. The outer `call_tool_chain` `timeout` param (default 120000ms = 2 min) limits the full TypeScript-sandbox budget.
+  1. The outer `call_tool_chain` `timeout` param (canonical default 30000ms) limits the full TypeScript-sandbox budget; set it higher for long Hook operations.
   2. The inner tool `timeoutMs` body param (default 60000ms = 1 min) limits the individual tool executor (osascript or hook CLI).
   For operations like `hook.all_bookmarks` on large libraries, you must set BOTH high enough. Example:
   ```ts

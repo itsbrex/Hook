@@ -24,7 +24,7 @@ Tests live in `tests/*.test.ts` (vitest).
 ## Conventions
 
 - **Runtime:** Node ≥ 22, Bun for dev/test
-- **Module system:** `"type": "module"` with `tsconfig.json` `moduleResolution: "bundler"` — write relative imports **without extensions** (e.g. `from "../src/osascript"`, not `"../src/osascript.js"`). Existing tests follow this convention; bundler resolution handles the `.ts` → runtime mapping.
+- **Module system:** `"type": "module"` with `tsconfig.json` `moduleResolution: "bundler"`. Runtime source compiled by `tsc` must use `.js` on relative imports so emitted Node ESM resolves (for example, `from "./toolNames.js"`). Existing Vitest-only test imports may remain extensionless because Vitest resolves `.ts` directly.
 - **Strict TypeScript:** no `any` without justification
 - **Test framework:** vitest — follow existing file naming (`*.test.ts` adjacent to source)
 - **Error handling:** AppleEvents errors (-1743) are macOS Automation permission issues — annotate with permission hint, do not retry

@@ -44,7 +44,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "@utcp/code-mode": "^1.2.11",
+    "@utcp/code-mode": "^1.2.12",
     "@utcp/dotenv-loader": "^1.1.0",
     "@utcp/http": "^1.1.0",
     "@utcp/sdk": "^1.1.0",

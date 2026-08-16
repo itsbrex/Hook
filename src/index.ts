@@ -12,6 +12,7 @@
 
 import util from "node:util";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";
 import { config as loadDotenv } from "dotenv";
@@ -40,6 +41,11 @@ import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
 import { regenHookSpec } from "./regenSpec.js";
 import { probeHookmark, runOsascript as runOsascriptRaw } from "./osascript.js";
 import { mergeAppleScriptSubcommands } from "./applescript/merge.js";
+import {
+  createCollisionSafeToolClient,
+  findToolByName,
+  serializeToolIdentity,
+} from "./toolNames.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -52,17 +58,38 @@ console.warn = (...args: unknown[]) =>
 loadDotenv({ path: path.resolve(__dirname, "..", ".env") });
 ensureCorePluginsInitialized();
 
-export const TOOL_NAMES = [
+export const CANONICAL_TOOL_NAMES = [
   "register_manual",
   "deregister_manual",
   "search_tools",
   "list_tools",
-  "changelog",
-  "tools_info",
-  "get_all_tool_interfaces",
   "get_required_keys_for_tool",
+  "tools_info",
   "call_tool_chain",
 ] as const;
+
+export const EXTENSION_TOOL_NAMES = [
+  "changelog",
+  "hook_get_all_tool_interfaces",
+  "get_all_tool_interfaces",
+] as const;
+
+export const TOOL_NAMES = [
+  ...CANONICAL_TOOL_NAMES,
+  ...EXTENSION_TOOL_NAMES,
+] as const;
+
+export const SERVER_VERSION = (
+  JSON.parse(
+    readFileSync(path.resolve(__dirname, "..", "package.json"), "utf8")
+  ) as { version: string }
+).version;
+
+const READ_ONLY_ANNOTATIONS = {
+  readOnlyHint: true,
+  openWorldHint: false,
+  idempotentHint: true,
+} as const;
 
 export function buildUsageGuide(): string {
   return [
@@ -223,7 +250,7 @@ async function bootBridgeAndClient(): Promise<void> {
   const tools = await client.getTools();
   console.log(`[hook] Total tools discovered: ${tools.length}`);
 
-  utcpClient = client;
+  utcpClient = createCollisionSafeToolClient(client);
 }
 
 async function getUtcpClient(): Promise<CodeModeUtcpClient> {
@@ -233,55 +260,36 @@ async function getUtcpClient(): Promise<CodeModeUtcpClient> {
 }
 
 // ---------------------------------------------------------------------------
-// Identifier helpers (from code-mode-mcp reference)
-// ---------------------------------------------------------------------------
-
-function sanitizeIdentifier(name: string): string {
-  return name.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^[0-9]/, "_$&");
-}
-
-function utcpNameToTsInterfaceName(utcpName: string): string {
-  if (utcpName.includes(".")) {
-    const parts = utcpName.split(".");
-    const manualName = parts[0]!;
-    const toolParts = parts.slice(1);
-    const sanitizedManualName = sanitizeIdentifier(manualName);
-    const toolName = toolParts
-      .map((part) => sanitizeIdentifier(part))
-      .join("_");
-    return `${sanitizedManualName}.${toolName}`;
-  }
-  return sanitizeIdentifier(utcpName);
-}
-
-async function findToolByName(
-  client: CodeModeUtcpClient,
-  name: string
-): Promise<{ tool: unknown; utcpName: string } | null> {
-  const directTool = await client.config.tool_repository.getTool(name);
-  if (directTool) return { tool: directTool, utcpName: name };
-
-  const allTools = await client.config.tool_repository.getTools();
-  for (const tool of allTools) {
-    if (utcpNameToTsInterfaceName((tool as { name: string }).name) === name) {
-      return { tool, utcpName: (tool as { name: string }).name };
-    }
-  }
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // MCP Server + Tool Registration
 // ---------------------------------------------------------------------------
 
-const mcp = new McpServer(
-  { name: "hookmark-mcp", version: "0.2.0" },
-  { instructions: buildUsageGuide() }
-);
+export interface ToolRuntimeOptions {
+  getClient?: () => Promise<CodeModeUtcpClient>;
+  getBridgePort?: () => number | null;
+  openChangelog?: typeof openInBrowser;
+  changelogAutoOpen?: boolean;
+}
 
-function setupMcpTools(): void {
+export function createMcpServer(
+  runtime: ToolRuntimeOptions = {}
+): McpServer {
+  const server = new McpServer(
+    { name: "hookmark-mcp", version: SERVER_VERSION },
+    { instructions: buildUsageGuide() }
+  );
+  setupMcpTools(server, runtime);
+  return server;
+}
+
+function setupMcpTools(
+  server: McpServer,
+  runtime: ToolRuntimeOptions
+): void {
+  const getClient = runtime.getClient ?? getUtcpClient;
+  const getBridgePort = runtime.getBridgePort ?? (() => bridgePort);
+  const openChangelog = runtime.openChangelog ?? openInBrowser;
   // ── Prompt: usage guide ──────────────────────────────────────────────
-  mcp.registerPrompt(
+  server.registerPrompt(
     "hook_codemode_usage",
     {
       title: "Hookmark Code-Mode Usage Guide",
@@ -294,7 +302,7 @@ function setupMcpTools(): void {
 You can access Hookmark data only through registered MCP Hookmark tools.
 
 ### Discovery and planning
-1. Start with \`search_tools\` using the user's natural-language task to find relevant tools. You can pass optional \`tags\` (e.g. ["clip", "link", "list", "find", "remove", "clone", "from"]) to filter results by category.
+1. Start with \`search_tools\` using the user's natural-language task to find relevant callable access names.
 2. Use \`list_tools\` to browse all available operations or find alternatives when search results are insufficient.
 3. Use \`tools_info\` to inspect exact TypeScript interfaces (args and return types) before writing code.
 
@@ -336,7 +344,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── register_manual ──────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "register_manual",
     {
       title: "Register a UTCP Manual",
@@ -348,7 +356,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       },
     },
     async (input: { manual_call_template: unknown }) => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       try {
         const result = await client.registerManual(
           input.manual_call_template as CallTemplate
@@ -371,7 +379,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── deregister_manual ────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "deregister_manual",
     {
       title: "Deregister a UTCP Manual",
@@ -383,7 +391,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       },
     },
     async (input: { manual_name: string }) => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       try {
         const success = await client.deregisterManual(input.manual_name);
         const message = success
@@ -412,41 +420,26 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── search_tools ─────────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "search_tools",
     {
-      title: "Search for Hookmark Tools",
-      description:
-        "Searches for relevant tools across Hookmark CLI subcommands based on a task description. Optionally filter by tags (e.g. 'clip', 'link', 'find') to narrow results to a specific category.",
+      annotations: READ_ONLY_ANNOTATIONS,
+      title: "Search for UTCP Tools",
+      description: "Searches for relevant tools based on a task description.",
       inputSchema: {
         task_description: z
           .string()
           .describe("A natural language description of the task."),
         limit: z.number().optional().default(10),
-        tags: z
-          .array(z.string())
-          .optional()
-          .describe(
-            "Optional list of tags to filter by. Results must have at least one of these tags."
-          ),
       },
     },
-    async (input: {
-      task_description: string;
-      limit?: number;
-      tags?: string[];
-    }) => {
-      const client = await getUtcpClient();
+    async (input: { task_description: string; limit?: number }) => {
+      const client = await getClient();
       try {
-        const tools = await client.searchTools(
-          input.task_description,
-          input.limit ?? 10,
-          input.tags
-        );
+        const tools = await client.searchTools(input.task_description, input.limit);
         const toolsWithInterfaces = tools.map((t) => ({
-          name: utcpNameToTsInterfaceName(t.name),
+          name: t.name,
           description: t.description,
-          tags: t.tags,
           typescript_interface: client.toolToTypeScriptInterface(t),
         }));
         return {
@@ -468,21 +461,19 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── list_tools ───────────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "list_tools",
     {
-      title: "List All Registered Hookmark Tools",
-      description:
-        "Returns a list of all tool names currently registered across Hookmark CLI subcommands.",
+      annotations: READ_ONLY_ANNOTATIONS,
+      title: "List All Registered UTCP Tools",
+      description: "Returns a list of all tool names currently registered.",
       inputSchema: {},
     },
     async () => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       try {
-        const tools = await client.config.tool_repository.getTools();
-        const toolNames = tools.map((t) =>
-          utcpNameToTsInterfaceName((t as { name: string }).name)
-        );
+        const tools = await client.getTools();
+        const toolNames = tools.map((tool) => tool.name);
         return {
           content: [
             { type: "text" as const, text: JSON.stringify({ tools: toolNames }) },
@@ -499,7 +490,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── changelog ────────────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "changelog",
     {
       title: "Get Runtime Changelog + Browser URL",
@@ -508,8 +499,8 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       inputSchema: {},
     },
     async () => {
-      await getUtcpClient();
-      const port = bridgePort;
+      await getClient();
+      const port = getBridgePort();
       if (!port) {
         return {
           isError: true,
@@ -520,8 +511,9 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       }
 
       const baseUrl = `http://127.0.0.1:${port}`;
-      await openInBrowser(`${baseUrl}/changelog`, {
-        autoOpen: getConfig(process.env).changelogAutoOpen,
+      await openChangelog(`${baseUrl}/changelog`, {
+        autoOpen:
+          runtime.changelogAutoOpen ?? getConfig(process.env).changelogAutoOpen,
       });
 
       return {
@@ -544,12 +536,13 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── tools_info ───────────────────────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "tools_info",
     {
+      annotations: READ_ONLY_ANNOTATIONS,
       title: "Get Tools Information with TypeScript Interface",
       description:
-        "Get complete information about specified tools, including TypeScript interface definitions.",
+        "Get complete information about a specified list of tools, including TypeScript interface definition.",
       inputSchema: {
         tool_names: z
           .array(z.string())
@@ -559,7 +552,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       },
     },
     async (input: { tool_names: string[] }) => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       try {
         const tsInterfaces: string[] = [];
         const infos: string[] = [];
@@ -600,17 +593,55 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
     }
   );
 
-  // ── get_all_tool_interfaces ─────────────────────────────────────────
-  mcp.registerTool(
-    "get_all_tool_interfaces",
+  // ── Hook interface extensions ───────────────────────────────────────
+  server.registerTool(
+    "hook_get_all_tool_interfaces",
     {
-      title: "Get All Tool TypeScript Interfaces",
+      annotations: READ_ONLY_ANNOTATIONS,
+      title: "Get Hook Tool TypeScript Interfaces",
       description:
-        "Returns TypeScript interface definitions for all registered tools across Hookmark CLI subcommands. Useful for understanding the full API surface at once.",
+        "Returns raw UTCP names, collision-safe sandbox access names, and TypeScript interfaces for all registered Hook tools.",
       inputSchema: {},
     },
     async () => {
-      const client = await getUtcpClient();
+      const client = await getClient();
+      try {
+        const [tools, interfaces] = await Promise.all([
+          client.getTools(),
+          client.getAllToolsTypeScriptInterfaces(),
+        ]);
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                tools: tools.map(serializeToolIdentity),
+                typescript_interfaces: interfaces,
+              }),
+            },
+          ],
+        };
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return {
+          isError: true,
+          content: [{ type: "text" as const, text: msg }],
+        };
+      }
+    }
+  );
+
+  server.registerTool(
+    "get_all_tool_interfaces",
+    {
+      annotations: READ_ONLY_ANNOTATIONS,
+      title: "Get All Tool TypeScript Interfaces",
+      description:
+        "Deprecated: use hook_get_all_tool_interfaces. Returns legacy TypeScript interface text for one compatibility window.",
+      inputSchema: {},
+    },
+    async () => {
+      const client = await getClient();
       try {
         const interfaces = await client.getAllToolsTypeScriptInterfaces();
         return {
@@ -627,9 +658,10 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── get_required_keys_for_tool ───────────────────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "get_required_keys_for_tool",
     {
+      annotations: READ_ONLY_ANNOTATIONS,
       title: "Get Required Variables for Tool",
       description: "Get required environment variables for a registered tool.",
       inputSchema: {
@@ -639,7 +671,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
       },
     },
     async (input: { tool_name: string }) => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       try {
         const found = await findToolByName(client, input.tool_name);
         if (!found) {
@@ -686,32 +718,23 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
   );
 
   // ── call_tool_chain (the core code-mode tool) ────────────────────────
-  mcp.registerTool(
+  server.registerTool(
     "call_tool_chain",
     {
-      title: "Execute TypeScript Code with Hookmark Tool Access",
+      title: "Execute TypeScript Code with Tool Access",
       description:
-        "Execute TypeScript code with direct access to all registered Hookmark tools as hierarchical functions (e.g., hook.clip({ body: { item } }), hook.link({ body: { item_a, item_b } })).",
+        "Execute TypeScript code with direct access to all registered tools as hierarchical functions (e.g., manual.tool()).",
       inputSchema: {
         code: z
           .string()
           .describe(
-            "TypeScript code to execute with access to all registered Hookmark tools."
+            "TypeScript code to execute with access to all registered tools."
           ),
         timeout: z
           .number()
           .optional()
-          .default(120000)
-          .describe(
-            "Sandbox execution timeout in milliseconds (default: 120000). This limits how long the TypeScript snippet as a whole can run. For individual tool calls that need more time (e.g. hook.all_bookmarks on a large library), ALSO pass timeoutMs in the tool's body to extend the per-tool executor timeout."
-          ),
-        memory_limit: z
-          .number()
-          .optional()
-          .default(128)
-          .describe(
-            "Optional memory limit in MB for the isolated-vm sandbox (default: 128)."
-          ),
+          .default(30000)
+          .describe("Optional timeout in milliseconds (default: 30000)."),
         max_output_size: z
           .number()
           .optional()
@@ -724,17 +747,15 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
     async (input: {
       code: string;
       timeout?: number;
-      memory_limit?: number;
       max_output_size?: number;
     }) => {
-      const client = await getUtcpClient();
+      const client = await getClient();
       const maxOutput = input.max_output_size ?? 200000;
 
       try {
         const { result, logs } = await client.callToolChain(
           input.code,
-          input.timeout ?? 120000,
-          input.memory_limit ?? 128
+          input.timeout
         );
 
         function truncateText(text: string): string {
@@ -792,7 +813,7 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
 // ---------------------------------------------------------------------------
 
 async function main(): Promise<void> {
-  setupMcpTools();
+  const mcp = createMcpServer();
   await bootBridgeAndClient();
   const transport = new StdioServerTransport();
   await mcp.connect(transport);
