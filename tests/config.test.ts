@@ -96,6 +96,7 @@ describe("config", () => {
       {
         HOOK_CLI: "/usr/local/bin/hook",
         HOOK_BRIDGE_PORT: "4000",
+        HOOK_TIMEOUT_MS: "90000",
         HOOK_SKIP_REGEN: "1",
         HOOK_CHANGELOG_AUTO_OPEN: "0",
       },
@@ -103,6 +104,7 @@ describe("config", () => {
     );
     expect(c.hookCli).toBe("/usr/local/bin/hook");
     expect(c.bridgePort).toBe(4000);
+    expect(c.defaultTimeoutMs).toBe(90_000);
     expect(c.skipRegen).toBe(true);
     expect(c.changelogAutoOpen).toBe(false);
   });
@@ -110,6 +112,21 @@ describe("config", () => {
   it("defaults to an ephemeral bridge port", () => {
     const c = getConfig({}, { lookupOnPath: noPath, fileExists: noFiles });
     expect(c.bridgePort).toBe(0);
+  });
+
+  it("defaults executor timeout to 60 seconds", () => {
+    const c = getConfig({}, { lookupOnPath: noPath, fileExists: noFiles });
+    expect(c.defaultTimeoutMs).toBe(60_000);
+  });
+
+  it("falls back to 60 seconds for invalid executor timeout values", () => {
+    for (const value of ["", "not-a-number", "0", "-1", "1.5"]) {
+      const c = getConfig(
+        { HOOK_TIMEOUT_MS: value },
+        { lookupOnPath: noPath, fileExists: noFiles }
+      );
+      expect(c.defaultTimeoutMs).toBe(60_000);
+    }
   });
 });
 

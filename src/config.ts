@@ -6,12 +6,14 @@ import path from "node:path";
 export interface RuntimeConfig {
   hookCli: string;
   bridgePort: number;
+  defaultTimeoutMs: number;
   skipRegen: boolean;
   changelogAutoOpen: boolean;
   skipApplescript: boolean;
 }
 
 const DEFAULT_BRIDGE_PORT = 0;
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 // Fallback when no hook binary is found anywhere. exec will still try this
 // via PATH — useful for containers/CI where PATH is populated lazily.
@@ -99,9 +101,14 @@ export function getConfig(
   env: NodeJS.ProcessEnv | Record<string, string | undefined>,
   deps: HookResolverDeps = {}
 ): RuntimeConfig {
+  const configuredTimeoutMs = Number(env.HOOK_TIMEOUT_MS);
   return {
     hookCli: resolveHookCli(env, deps),
     bridgePort: Number(env.HOOK_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT),
+    defaultTimeoutMs:
+      Number.isInteger(configuredTimeoutMs) && configuredTimeoutMs > 0
+        ? configuredTimeoutMs
+        : DEFAULT_TIMEOUT_MS,
     skipRegen: env.HOOK_SKIP_REGEN === "1",
     changelogAutoOpen: env.HOOK_CHANGELOG_AUTO_OPEN !== "0",
     skipApplescript: env.HOOK_SKIP_APPLESCRIPT === "1",

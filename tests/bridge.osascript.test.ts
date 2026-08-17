@@ -130,6 +130,35 @@ describe("bridge (osascript source)", () => {
     }
   });
 
+  it("POST /all_bookmarks without timeoutMs uses configured server default", async () => {
+    const runOsascript = vi.fn(
+      (_script: string, _args: string[], opts?: { timeoutMs?: number }) => {
+        expect(opts?.timeoutMs).toBe(90_000);
+        return '"ok"';
+      }
+    );
+    const { listen, close } = createBridgeServer({
+      spec: SPEC,
+      hookCli: "/opt/bin/hook",
+      defaultTimeoutMs: 90_000,
+      runHook: vi.fn(),
+      runOsascript,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/all_bookmarks`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      expect(res.status).toBe(200);
+      expect(runOsascript).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
   it("returns 500 when osascript executor isn't wired", async () => {
     const { listen, close } = createBridgeServer({
       spec: SPEC,

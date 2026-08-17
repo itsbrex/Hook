@@ -207,6 +207,7 @@ async function bootBridgeAndClient(): Promise<void> {
   bridge = createBridgeServer({
     spec,
     hookCli: cfg.hookCli,
+    defaultTimeoutMs: cfg.defaultTimeoutMs,
     runHook,
     runOsascript: runOsascriptAdapter,
     getChangelogHtml: () => cachedChangelogHtml,

@@ -15,11 +15,11 @@ Surfaced during live testing in Claude Desktop. Documented here so the next call
 ### Hookmark CLI limitations not yet worked around
 
 - **`hook remove FILE_A FILE_B` is interactive.** It prompts `y/N` on stdin and hangs in non-TTY contexts. Calling the `/remove` MCP route will time out or error. Workaround: use `/unhook_bookmarks` (JXA-backed — same semantics, no TTY dependency). See `docs/upstream-issues.md`. Note: the spec description for `remove` is regenerated from `hook help remove` on each startup, so an inline annotation in `docs/reference/hook-cli-spec.json` would be clobbered — a regen-safe override (e.g. a post-regen patch step in `src/regenSpec.ts`) is needed before the warning can live in the spec itself.
-- **Long-running enumerations can exceed the 60-second executor timeout.** `hook.all_bookmarks` and unbounded `hook.find` / `hook.list` against large Hookmark libraries (~2000+ bookmarks) may time out. Workaround: pass `timeoutMs: 120000` (or larger) in the request body to raise the per-call limit.
+- **Long-running enumerations can exceed the default executor timeout.** `hook.all_bookmarks` and unbounded `hook.find` / `hook.list` against large Hookmark libraries (~2000+ bookmarks) may time out. Pass `timeoutMs: 120000` (or larger) in the request body for a per-call override, or set `HOOK_TIMEOUT_MS` to change the server default.
 - **`hook.all_bookmarks` / `hook.bookmarks_with_tags` return a `{records, total, errors}` shape.** Individual bookmarks that error during iteration appear as `{error, index, address?}` rows rather than crashing the batch. Inspect `errors > 0` to decide whether to log or retry. This is a breaking change from v0.3.0's bare-array return — callers that previously did `JSON.parse(out) as Array<VerboseBookmark>` must now read `.records`.
 - **Two timeouts govern long operations:**
   1. The outer `call_tool_chain` `timeout` param (canonical default 30000ms) limits the full TypeScript-sandbox budget; set it higher for long Hook operations.
-  2. The inner tool `timeoutMs` body param (default 60000ms = 1 min) limits the individual tool executor (osascript or hook CLI).
+  2. The inner tool `timeoutMs` body param (server default 60000ms = 1 min, configurable with `HOOK_TIMEOUT_MS`) limits the individual tool executor (osascript or hook CLI).
   For operations like `hook.all_bookmarks` on large libraries, you must set BOTH high enough. Example:
   ```ts
   call_tool_chain({
@@ -455,6 +455,7 @@ Get the `hook://` URL for the active document in a macOS app.
 |----------|---------|-------------|
 | `HOOK_CLI` | auto-detected | Path to the `hook` CLI binary |
 | `HOOK_BRIDGE_PORT` | `0` | Local HTTP bridge port. `0` picks an ephemeral free port |
+| `HOOK_TIMEOUT_MS` | `60000` | Default executor timeout in milliseconds. Positive per-request `timeoutMs` overrides it |
 | `HOOK_SKIP_REGEN` | `0` | Skip `hook help` spec regeneration at startup when set to `1` |
 | `HOOK_CHANGELOG_AUTO_OPEN` | `1` | Disable browser auto-open for the changelog UI when set to `0` |
 

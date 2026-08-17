@@ -29,6 +29,23 @@ describe("generateOpenApiSpec", () => {
     expect(schema.properties.markdown).toEqual({ type: "boolean", description: "Markdown link" });
   });
 
+  it("exposes timeoutMs with the configured default on every operation", () => {
+    const openapi = generateOpenApiSpec(
+      "http://127.0.0.1:3801",
+      SPEC,
+      90_000
+    );
+    const schema = openapi.paths["/clip"].post.requestBody.content[
+      "application/json"
+    ].schema;
+    expect(schema.properties.timeoutMs).toEqual({
+      type: "integer",
+      minimum: 1,
+      default: 90_000,
+      description: expect.stringContaining("HOOK_TIMEOUT_MS"),
+    });
+  });
+
   it("marks value-taking flags as string in the request schema", () => {
     const spec: HookCliSpec = {
       generatedAt: "2026-04-20T00:00:00.000Z",
@@ -63,7 +80,12 @@ describe("generateOpenApiSpec", () => {
     const openapi = generateOpenApiSpec("http://127.0.0.1:3801", spec);
     const schema = (openapi.paths["/list"].post as { requestBody: { content: { "application/json": { schema: { properties: Record<string, unknown>; required: string[] } } } } })
       .requestBody.content["application/json"].schema;
-    expect(Object.keys(schema.properties).sort()).toEqual(["json", "optional", "required"]);
+    expect(Object.keys(schema.properties).sort()).toEqual([
+      "json",
+      "optional",
+      "required",
+      "timeoutMs",
+    ]);
     expect(schema.required).toEqual(["required"]);
   });
 });

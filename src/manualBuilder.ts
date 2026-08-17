@@ -51,7 +51,10 @@ function supportsJsonFlag(subName: string): boolean {
   return subName === "list" || subName === "find";
 }
 
-function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
+function buildRequestSchema(
+  sub: HookSubcommand,
+  defaultTimeoutMs?: number
+): Record<string, unknown> {
   const properties: Record<string, unknown> = {};
   const positional = extractPositionals(sub.usage);
 
@@ -63,6 +66,14 @@ function buildRequestSchema(sub: HookSubcommand): Record<string, unknown> {
     const [key, schema] = optionToProperty(opt);
     if (key) properties[key] = schema;
   }
+
+  properties.timeoutMs = {
+    type: "integer",
+    minimum: 1,
+    description:
+      "Executor timeout in milliseconds for this request. Overrides the server default configured by HOOK_TIMEOUT_MS.",
+    ...(defaultTimeoutMs !== undefined ? { default: defaultTimeoutMs } : {}),
+  };
 
   // Phase 4.3: expose `json=true` flag for list/find so callers know it's available.
   if (supportsJsonFlag(sub.name)) {
@@ -101,7 +112,11 @@ export interface OpenApiDocument {
   paths: Record<string, { post: Record<string, unknown> }>;
 }
 
-export function generateOpenApiSpec(baseUrl: string, spec: HookCliSpec): OpenApiDocument {
+export function generateOpenApiSpec(
+  baseUrl: string,
+  spec: HookCliSpec,
+  defaultTimeoutMs?: number
+): OpenApiDocument {
   const paths: OpenApiDocument["paths"] = {};
   for (const sub of spec.subcommands) {
     paths[`/${sub.name}`] = {
@@ -112,7 +127,11 @@ export function generateOpenApiSpec(baseUrl: string, spec: HookCliSpec): OpenApi
         description: sub.usage,
         requestBody: {
           required: true,
-          content: { "application/json": { schema: buildRequestSchema(sub) } },
+          content: {
+            "application/json": {
+              schema: buildRequestSchema(sub, defaultTimeoutMs),
+            },
+          },
         },
         responses: {
           "200": {

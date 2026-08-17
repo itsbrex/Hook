@@ -6,6 +6,7 @@ import { parseVerboseListing, parseVerboseFindListing } from "./verboseParser.js
 export interface BridgeOptions {
   spec: HookCliSpec;
   hookCli: string;
+  defaultTimeoutMs?: number;
   runHook: (
     hookCli: string,
     args: string[],
@@ -81,7 +82,11 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
     res.setHeader("content-type", "application/json");
 
     if (req.method === "GET" && pathname === "/openapi") {
-      const openapi = generateOpenApiSpec(`http://127.0.0.1:${(server.address() as { port: number }).port}`, opts.spec);
+      const openapi = generateOpenApiSpec(
+        `http://127.0.0.1:${(server.address() as { port: number }).port}`,
+        opts.spec,
+        opts.defaultTimeoutMs
+      );
       res.end(JSON.stringify(openapi));
       return;
     }
@@ -103,7 +108,7 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
       const timeoutMs =
         typeof argsInput.timeoutMs === "number" && argsInput.timeoutMs > 0
           ? argsInput.timeoutMs
-          : undefined;
+          : opts.defaultTimeoutMs;
 
       if (sub.source === "osascript") {
         if (!opts.runOsascript) {

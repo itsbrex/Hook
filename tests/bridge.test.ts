@@ -597,6 +597,45 @@ describe("bridge server", () => {
     }
   });
 
+  it("POST /list without timeoutMs uses the configured server default", async () => {
+    const runHook = vi.fn(
+      (
+        _hookCli: string,
+        _args: string[],
+        opts?: { stdin?: string; timeoutMs?: number }
+      ) => {
+        expect(opts?.timeoutMs).toBe(90_000);
+        return "ok";
+      }
+    );
+    const spec: HookCliSpec = {
+      generatedAt: "x",
+      hookVersion: "1",
+      subcommands: [
+        { name: "list", usage: "hook list [FILE_OR_URL]", description: "", options: [] },
+      ],
+    };
+    const { listen, close } = createBridgeServer({
+      spec,
+      hookCli: "/opt/bin/hook",
+      defaultTimeoutMs: 90_000,
+      runHook,
+      getChangelogHtml: () => "",
+    });
+    const port = await listen(0);
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/list`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      expect(res.status).toBe(200);
+      expect(runHook).toHaveBeenCalledOnce();
+    } finally {
+      await close();
+    }
+  });
+
   it("POST /list with non-numeric timeoutMs ignores the override", async () => {
     const runHook = vi.fn(
       (
