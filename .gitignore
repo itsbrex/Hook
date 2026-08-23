@@ -45,3 +45,10 @@ test_noise.*
 
 # Local test baselines (for regression diffs)
 tests/.baseline/
+
+# Hookmark DB backups + local mutation scripts (personal data — never commit)
+todo/
+*.sqlite
+
+# Local retest notes
+retest-fu2-fu5.md
