@@ -23,7 +23,7 @@ Tests live in `tests/*.test.ts` (vitest).
 
 ## Conventions
 
-- **Runtime:** Node ≥ 22, Bun for dev/test
+- **Runtime:** Node ≥ 22.12, Bun for dev/test
 - **Module system:** `"type": "module"` with `tsconfig.json` `moduleResolution: "bundler"`. Runtime source compiled by `tsc` must use `.js` on relative imports so emitted Node ESM resolves (for example, `from "./toolNames.js"`). Existing Vitest-only test imports may remain extensionless because Vitest resolves `.ts` directly.
 - **Strict TypeScript:** no `any` without justification
 - **Test framework:** vitest — follow existing file naming (`*.test.ts` adjacent to source)
