@@ -43,18 +43,18 @@
     "node": ">=22.0.0"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.26.0",
-    "@utcp/code-mode": "^1.2.12",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@utcp/code-mode": "^1.2.13",
     "@utcp/dotenv-loader": "^1.1.0",
-    "@utcp/http": "^1.1.0",
-    "@utcp/sdk": "^1.1.0",
-    "dotenv": "^17.3.1",
-    "zod": "^3.23.0"
+    "@utcp/http": "^1.1.12",
+    "@utcp/sdk": "^1.1.2",
+    "dotenv": "^17.4.2",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
-    "typescript": "^5.7.0",
-    "vitest": "^2.1.0"
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "4.1.11"
   }
 }
