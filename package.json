@@ -12,7 +12,8 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "regen-spec": "tsx scripts/regen_hook_spec.ts"
+    "regen-spec": "tsx scripts/regen_hook_spec.ts",
+    "plans": "bun scripts/plans.mjs"
   },
   "keywords": [
     "mcp",
