@@ -48,10 +48,13 @@ The MCP's AppleScript-backed subcommands use JXA (`osascript -l JavaScript`) rat
 
 - `HOOK_SKIP_REGEN=1` — skip spec regeneration on startup
 - `HOOK_CHANGELOG_AUTO_OPEN=0` — suppress auto-opening changelog in browser
+- `HOOK_BRIDGE_PORT` — bridge port; code default `0` (ephemeral)
+
+**mise loads the main checkout's `.env` into every process under this repo** (worktrees included), and it overrides inline env such as `HOOK_BRIDGE_PORT=0 node dist/index.js`. That `.env` pins `HOOK_BRIDGE_PORT=3801`, the port the live MCP instance already holds, so a local smoke boot dies with `EADDRINUSE 127.0.0.1:3801`. Run `mise env | grep HOOK` to see the effective values.
 
 ## Git workflow
 
-- Branch from `main`; current feature branch: `feat/code-mode-mcp`
+- Branch from `main`; `feat/code-mode-mcp` is merged and gone, so there is no long-lived feature branch
 - Commit style: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`)
 - Do not commit: `dist/`, `node_modules/`, `.env*`, `Notes/`, `tasks/`
 
