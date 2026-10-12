@@ -236,7 +236,14 @@ export function createBridgeServer(opts: BridgeOptions): BridgeServer {
   });
 
   return {
-    listen: (port) => new Promise((resolve) => server.listen(port, "127.0.0.1", () => resolve((server.address() as { port: number }).port))),
+    listen: (port) =>
+      new Promise((resolve, reject) => {
+        server.once("error", reject);
+        server.listen(port, "127.0.0.1", () => {
+          server.off("error", reject);
+          resolve((server.address() as { port: number }).port);
+        });
+      }),
     close: () => new Promise((resolve, reject) => server.close((err) => (err ? reject(err) : resolve()))),
   };
 }

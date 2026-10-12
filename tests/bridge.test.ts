@@ -27,6 +27,16 @@ async function fetchJson(url: string, init?: RequestInit) {
 }
 
 describe("bridge server", () => {
+  it("rejects listen() when the port is already taken", async () => {
+    const first = makeServer();
+    const port = await first.listen(0);
+    try {
+      await expect(makeServer().listen(port)).rejects.toMatchObject({ code: "EADDRINUSE" });
+    } finally {
+      await first.close();
+    }
+  });
+
   it("serves /openapi with the generated spec", async () => {
     const { listen, close } = makeServer();
     const port = await listen(0);

@@ -37,6 +37,7 @@ import { getConfig } from "./config.js";
 import { runHook } from "./hookCli.js";
 import { loadHookCliSpec } from "./manualBuilder.js";
 import { createBridgeServer, type BridgeServer } from "./bridge.js";
+import { installShutdownHooks } from "./lifecycle.js";
 import { diffSpecs, renderChangelogHtml, openInBrowser } from "./changelog.js";
 import { regenHookSpec } from "./regenSpec.js";
 import { probeHookmark, runOsascript as runOsascriptRaw } from "./osascript.js";
@@ -815,6 +816,17 @@ Inside \`call_tool_chain\`, you also have access to these introspection globals:
 
 async function main(): Promise<void> {
   const mcp = createMcpServer();
+  installShutdownHooks({
+    stdin: process.stdin,
+    signals: process,
+    getPpid: () => process.ppid,
+    cleanup: async () => {
+      await mcp.close();
+      await bridge?.close();
+    },
+    exit: (code) => process.exit(code),
+    log: (message) => console.error(message),
+  });
   await bootBridgeAndClient();
   const transport = new StdioServerTransport();
   await mcp.connect(transport);
